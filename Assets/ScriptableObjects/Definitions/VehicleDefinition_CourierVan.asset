@@ -20,11 +20,13 @@ MonoBehaviour:
   handbrakeStrength: 3
   brakeForce: 3500
   maxSteerAngle: 32
-  steerFalloff: 1.1
+  minSteerFactor: 0.35
   lateralGrip: 12
   downforce: 60
   autoUprightSpeed: 120
+  cargoCapacityKg: 350
+  cargoCapacityLiters: 900
   suspensionDistance: 0.3
   suspensionSpring: 35000
   suspensionDamper: 4500
-  wheelRadius: 0.35
+  wheelRadius: 0.3

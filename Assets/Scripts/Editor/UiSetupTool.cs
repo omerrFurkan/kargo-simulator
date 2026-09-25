@@ -21,6 +21,39 @@ namespace KargoSim.EditorTools
         private const string UguiResourcePath = "UI/Skin/UISprite.psd";
         private const string DefaultFontPath = "UI/Skin/UISprite.psd";
 
+        /// <summary>
+        /// Her seyi dogru sirayla kurar.
+        ///
+        /// Neden gerekli: kurulum birkac ayri menuye bolunmus duruyor ve
+        /// bunlarin SIRASI onemli (icerik -> arayuz). Kullanici her seferinde
+        /// menuleri elle sirayla calistirmak zorunda kalmasin.
+        /// </summary>
+        [MenuItem("Kargo/0. HER SEYI KUR (Arayuz dahil)", priority = -1)]
+        public static void BuildEverything()
+        {
+            Debug.Log("[Kargo] === Tam kurulum basliyor ===");
+
+            ProjectSetupTool.RunAllSetup();
+            Debug.Log("[Kargo] 1/6 proje ayarlari");
+
+            VehiclePrefabBuilder.Build();
+            Debug.Log("[Kargo] 2/6 arac prefabi + sahne");
+
+            ContentSetupTool.BuildContent();
+            Debug.Log("[Kargo] 3/6 kargo turleri");
+
+            DeliverySetupTool.BuildLayout();
+            Debug.Log("[Kargo] 4/6 harita + durak isaretleri");
+
+            ProgressionSetupTool.BuildEconomyConfig();
+            Debug.Log("[Kargo] 5/6 ekonomi ayarlari");
+
+            BuildUI();
+            Debug.Log("[Kargo] 6/6 arayuz");
+
+            Debug.Log("[Kargo] === Tam kurulum bitti ===");
+        }
+
         [MenuItem("Kargo/6. Arayuzu Kur", priority = 5)]
         public static void BuildUI()
         {
@@ -129,41 +162,50 @@ namespace KargoSim.EditorTools
 
             var view = go.AddComponent<HudView>();
 
-            // --- Sol ust panel ---
-            RectTransform panel = CreatePanel("Panel", go.transform,
-                new Vector2(0f, 1f), new Vector2(0f, 1f), new Vector2(18f, -18f),
-                new Vector2(330f, 250f));
+            // ----------------------------------------------------------------
+            // SOL ALT: bilgi paneli (para, seviye, saat, kapasite)
+            // ----------------------------------------------------------------
+            RectTransform panel = CreatePanel("Stats", go.transform,
+                new Vector2(0f, 0f), new Vector2(0f, 0f), new Vector2(18f, 18f),
+                new Vector2(320f, 250f));
+            panel.anchorMin = Vector2.zero;
+            panel.anchorMax = Vector2.zero;
+            panel.pivot = Vector2.zero;
 
+            // Panelin sol-ust kosesine gore konumlandir (pivot degil).
             Text money = CreateText("Money", panel, font, UITheme.FontLarge, UITheme.Money,
-                new Vector2(0f, 1f), new Vector2(0f, 1f), new Vector2(0f, -12f), new Vector2(300f, 34f));
+                new Vector2(0f, 1f), new Vector2(0f, 1f), new Vector2(0f, -10f), new Vector2(300f, 34f));
             money.alignment = TextAnchor.MiddleLeft;
 
             Text level = CreateText("Level", panel, font, UITheme.FontNormal, UITheme.TextPrimary,
-                new Vector2(0f, 1f), new Vector2(0f, 1f), new Vector2(0f, -50f), new Vector2(300f, 26f));
+                new Vector2(0f, 1f), new Vector2(0f, 1f), new Vector2(0f, -46f), new Vector2(300f, 24f));
             level.alignment = TextAnchor.MiddleLeft;
 
-            Image xpFill = CreateBar("XPBar", panel, new Vector2(0f, -80f));
+            Image xpFill = CreateBar("XPBar", panel, new Vector2(0f, -74f));
             Image capFill = CreateBar("CapacityBar", panel, new Vector2(0f, -150f));
 
             Text time = CreateText("Time", panel, font, UITheme.FontNormal, UITheme.TextPrimary,
-                new Vector2(0f, 1f), new Vector2(0f, 1f), new Vector2(0f, -88f), new Vector2(300f, 26f));
+                new Vector2(0f, 1f), new Vector2(0f, 1f), new Vector2(0f, -82f), new Vector2(300f, 24f));
             time.alignment = TextAnchor.MiddleLeft;
 
             Text capacity = CreateText("Capacity", panel, font, UITheme.FontSmall, UITheme.TextMuted,
-                new Vector2(0f, 1f), new Vector2(0f, 1f), new Vector2(0f, -164f), new Vector2(300f, 60f));
+                new Vector2(0f, 1f), new Vector2(0f, 1f), new Vector2(0f, -164f), new Vector2(300f, 66f));
             capacity.alignment = TextAnchor.UpperLeft;
 
+            // ----------------------------------------------------------------
+            // Alt orta: sonraki hedef + ipucu
+            // ----------------------------------------------------------------
             Text nextStop = CreateText("NextStop", go.transform, font, UITheme.FontNormal, UITheme.Accent,
-                new Vector2(0f, 0f), new Vector2(0.5f, 0f), new Vector2(0f, 26f), new Vector2(760f, 30f));
+                new Vector2(0.5f, 0f), new Vector2(0.5f, 0f), new Vector2(0f, 44f), new Vector2(820f, 28f));
             nextStop.alignment = TextAnchor.MiddleCenter;
 
             Text hint = CreateText("Hint", go.transform, font, UITheme.FontSmall, UITheme.TextMuted,
-                new Vector2(0f, 0f), new Vector2(0.5f, 0f), new Vector2(0f, 4f), new Vector2(760f, 22f));
+                new Vector2(0.5f, 0f), new Vector2(0.5f, 0f), new Vector2(0f, 18f), new Vector2(900f, 22f));
             hint.alignment = TextAnchor.MiddleCenter;
 
-            // Odeme bildirimi: ekranin ust ortasi
+            // Odeme / seviye bildirimi: ekranin ust ortasi
             Text payout = CreateText("Payout", go.transform, font, UITheme.FontHuge, UITheme.Success,
-                new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(0f, -60f), new Vector2(760f, 60f));
+                new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(0f, -60f), new Vector2(820f, 60f));
             payout.alignment = TextAnchor.MiddleCenter;
             payout.gameObject.SetActive(false);
 
@@ -193,10 +235,13 @@ namespace KargoSim.EditorTools
             go.transform.SetParent(parent, false);
             var view = go.AddComponent<MinimapView>();
 
+            // SOL ALT: istatistik panelinin saginda
             RectTransform panel = CreatePanel("Area", go.transform,
-                new Vector2(1f, 1f), new Vector2(1f, 1f), new Vector2(-18f, -18f),
+                Vector2.zero, Vector2.zero, new Vector2(352f, 18f),
                 new Vector2(UITheme.MinimapSize, UITheme.MinimapSize));
-            panel.anchorMin = new Vector2(1f, 1f);
+            panel.anchorMin = Vector2.zero;
+            panel.anchorMax = Vector2.zero;
+            panel.pivot = Vector2.zero;
 
             // Arka plan
             Image bg = CreateImage("Background", panel, new Color(0f, 0f, 0f, 0.55f));
@@ -223,7 +268,7 @@ namespace KargoSim.EditorTools
             vehicle.rectTransform.sizeDelta = new Vector2(10f, 10f);
 
             Text label = CreateText("Label", panel, font, UITheme.FontTiny, UITheme.TextMuted,
-                new Vector2(0f, 0f), new Vector2(0f, 0f), new Vector2(0f, -UITheme.FontTiny - 2f),
+                new Vector2(0f, 0f), new Vector2(0f, 0f), new Vector2(0f, 2f),
                 new Vector2(UITheme.MinimapSize, 18f));
             label.alignment = TextAnchor.LowerCenter;
             label.text = "HARITA";
@@ -322,7 +367,11 @@ namespace KargoSim.EditorTools
             so.ApplyModifiedPropertiesWithoutUndo();
             EditorUtility.SetDirty(view);
 
-            go.SetActive(false);
+            // DIKKAT: KOK GameObject degil, sadece IC panel kapatilir.
+            // Kok kapatilirsa panel.SetActive(true) cagrisi etkisiz kalir
+            // (GameObject inactive iken cocugu da gorunmez) ve oyuncu
+            // "Tab calismiyor" sanar.
+            panel.gameObject.SetActive(false);
             return view;
         }
 
@@ -363,7 +412,8 @@ namespace KargoSim.EditorTools
             so.ApplyModifiedPropertiesWithoutUndo();
             EditorUtility.SetDirty(view);
 
-            go.SetActive(false);
+            // Kok degil, ic panel kapatilir (aciklama BuildDepot'ta).
+            panel.gameObject.SetActive(false);
             return view;
         }
 
@@ -404,7 +454,8 @@ namespace KargoSim.EditorTools
             so.ApplyModifiedPropertiesWithoutUndo();
             EditorUtility.SetDirty(view);
 
-            go.SetActive(false);
+            // Kok degil, ic panel kapatilir (aciklama BuildDepot'ta).
+            panel.gameObject.SetActive(false);
             return view;
         }
 

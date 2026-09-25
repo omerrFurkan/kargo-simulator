@@ -57,10 +57,10 @@ neden açılmıyor" belirsizliği kalmaz.
 ### Testler
 
 EditMode testleri formülleri ve sahne bütünlüğünü, PlayMode testleri
-gerçek fizik motorunda sürüşü doğrular (**137 + 7 test**).
+gerçek fizik motorunda sürüşü doğrular (**138 + 7 test**).
 
 ```powershell
-# EditMode (36 test)
+# EditMode (138 test)
 & "C:\Program Files\Unity\Hub\Editor\6000.3.25f1\Editor\Unity.exe" `
   -runTests -batchmode -nographics -projectPath "D:\KargoSimulator" `
   -testPlatform EditMode -testResults "D:\KargoSimulator\editmode.xml"
@@ -70,6 +70,14 @@ gerçek fizik motorunda sürüşü doğrular (**137 + 7 test**).
   -runTests -batchmode -nographics -projectPath "D:\KargoSimulator" `
   -testPlatform PlayMode -testResults "D:\KargoSimulator\playmode.xml"
 ```
+
+> **Not:** Editor normal kapanışta `Temp/UnityLockfile` silinmezse
+> batchmode "*another Unity instance is running*" hatası verir ve
+> hiçbir şey çalıştırmaz. Unity kapalıyken bu dosyayı silmek yeterlidir.
+>
+> ```powershell
+> Remove-Item "D:\KargoSimulator\Temp\UnityLockfile" -Force -ErrorAction SilentlyContinue
+> ```
 
 Unity içinden: **Window → General → Test Runner**
 
@@ -131,7 +139,7 @@ Bunlar `Kargo/1. Tum Kurulumu Calistir` ile uygulanır.
 Assets/
 ├── Art/
 │   ├── Materials/        URP/Lit düz renkli materyaller
-│   ├── Models/           Blender çıktısı (boş)
+│   ├── Kenney/CarKit/    Hazır CC0 model paketi (bkz. "Görseller")
 │   └── Prefabs/
 ├── Audio/                (boş)
 ├── Prefabs/
@@ -146,7 +154,7 @@ Assets/
 │   ├── Mission/          (Aşama 6)
 │   ├── UI/               UIManager, HUD, Depot, Stop, DaySummary, Minimap
 │   ├── Save/             (Aşama 7)
-│   └── Editor/           6 kurulum aracı (Project / Vehicle / Content / Delivery / Progression / UI)
+│   └── Editor/           7 kurulum aracı (Project / Vehicle / Kenney / Content / Delivery / Progression / UI)
 ├── ScriptableObjects/
 │   ├── Definitions/      VehicleDefinition, Parcels/ (6 ParcelType)
 │   └── Database/GameConfig.asset, MapLayout.asset, EconomyConfig.asset
@@ -166,6 +174,47 @@ Assets/
 
 ---
 
+## Görseller (hazır model paketleri)
+
+Model için Blender kullanılmıyor. Bunun yerine lisansı ticari kullanıma
+açık, düşük poligonlu **hazır paketler** kullanılıyor.
+
+| Paket | Kaynak | Lisans | Kullanım |
+|---|---|---|---|
+| Car Kit 3.1 | [kenney.nl/assets/car-kit](https://kenney.nl/assets/car-kit) | **CC0 1.0** | Kurye aracı (`delivery.fbx`) + 50 model |
+
+**CC0 ne demek:** Telif hakkı tamamen kamu malıdır. Ticari kullanım
+serbest, izin istemek zorunlu değil, atıf zorunlu değil. Yine de
+`Assets/Art/Kenney/CarKit/License.txt` projede tutulur.
+
+**Kurulum:** Paketi indirip `Assets/Art/Kenney/CarKit/` altına açın
+(`.fbx` + `Textures/` aynı klasör yapısında kalmalı), sonra menüden:
+
+```
+Kargo → Asset → Kenney Kurye Aracini Kur
+```
+
+Ya da `Kargo → 0. HER SEYI KUR` tüm zinciri sırayla çalıştırır.
+
+**Ölçekleme:** Model ölçüsü `delivery.fbx` içinde 3.25 m; kurulum aracı
+hedef boyu **4.20 m** olacak şekilde `x1.292` ile ölçekler, dingil
+ortasını ve teker izini eksene hizalar, en alta indirir (lastikler
+zeminde). Sonuç: **4.20 × 1.94 × 2.13 m** bir panelvan, teker yarıçapı
+**0.30 m**. `VehicleDefinition.wheelRadius` buna göre güncellenir; fizik
+(şasi collider'ı, süspansiyon) görselle birebir örtüşür.
+
+**Tekerler:** Kenney modelinde tekerler ayrı mesh gruplarıdır
+(`wheel-front-left` …). Bunlar `WheelCollider` nesnelerinin altına
+taşınır ve `WheelVisual` ile fizik pozuna kilitlenir — böylece hem
+**dönüyor** hem de ön tekerler **direksiyona uyuyor**. (Önceden
+silindir tekerler takılıydı ve hiç dönmüyordu.)
+
+**Güvenli geri dönüş:** Hazır model kurulu değilse `VehiclePrefabBuilder`
+primitive yola düşer. Yani paket silinse bile oyun yine sürülebilir
+bir araçla açılır.
+
+---
+
 ## Kontroller
 
 | Tuş | İşlev |
@@ -175,11 +224,28 @@ Assets/
 | **A / ← · D / →** | Direksiyon |
 | **Space** | El freni (yalnızca arka tekerlere) |
 | **R** | Aracı başlangıç noktasına iade et |
-| **Tab** | Depo listesini aç / kapat |
-| **E** | Depoda seçili kargoyu yükle · adreste teslim et |
+| **E** | **Ana eylem tuşu** (bağlama göre aşağıya bak) |
 | **1 – 9** | Depoda kargo seç |
 | **Q** | Aracı boşalt |
+| **Tab** | Depo listesini aç / kapat — *yalnızca alias* |
 | **Esc** | Panelleri kapat |
+
+**`E` bağlama göre çalışır** — tek bir "ana eylem" tuşu, üç farklı durum:
+
+| Durum | `E` ne yapar |
+|---|---|
+| Depoda, panel kapalı | Depo listesini açar |
+| Depoda, panel açık | Seçili kargoyu yükler (panel açık kalır, art arda yüklenebilir) |
+| Duraktayken | Sıradaki kargoyu teslim eder |
+
+> **Neden `Tab` birincil değil:** Unity Editor `Tab`'ı odak
+> değiştirme için kullandığı için oyun içinde Editor'da çalıştırırken
+> `Tab` tuşu oyuncuya ulaşmayabiliyordu. Bu yüzden birincil tuş `E`
+> yapıldı, `Tab` build'de çalışan alternatif olarak kaldı. Gerçek
+> Build'de ikisi de tanımlıdır.
+
+Ayrıca HUD'da o anki bağlam yazılı (`[E] Depoyu ac`, `[E] Yukle`,
+`[E] Teslim et` …); oyuncu tuşları tahmin etmek zorunda kalmaz.
 
 Detaylı oynanış: bakınız *Aşama 6 — Arayüz*.
 
@@ -198,7 +264,9 @@ Detaylı oynanış: bakınız *Aşama 6 — Arayüz*.
 | `Vehicle/ArcadeVehicleController` | Fizik: motor, fren, direksiyon, yanal tutunma, downforce, takla koruması |
 | `Player/PlayerController` | Klavye → girdi |
 | `Player/CameraFollow` | Takip kamerası, hıza göre FOV |
-| `Editor/VehiclePrefabBuilder` | Prefab'ı primitive'lerden üretir, sahneye koyar, doğrular |
+| `Editor/VehiclePrefabBuilder` | Prefab'ı üretir, sahneye koyar, doğrular |
+| `Editor/KenneyAssetSetup` | Hazır CC0 modeli (Kenney Car Kit) içe alır, aracı bu modelle üretir |
+| `Vehicle/WheelVisual` | Teker mesh'ini `WheelCollider` pozuna kilitler (dönme + direksiyon) |
 
 **Tasarım kararı:** Fizik matematiği `static` saf fonksiyonlarda
 (`ComputeSteerAngle`, `ComputeMotorTorque`, `ComputeBrakeTorque`).
@@ -429,6 +497,31 @@ oluyordu. Sahne artık **başta** açılıyor, işaretler sonda yazılıyor.
 > **Kural:** Editör aracı sahneye nesne ekliyorsa sahneyi **tam başta bir
 > kez** açmalı. Ortada yeniden açmak kaydedilmemiş her şeyi siler.
 
+### Panel görünmüyordu (manuel testte bulundu)
+
+İlk manuel oyunda depo ve teslimat panelleri hiç açılmıyordu; oyuncu
+"Tablo/E çalışmıyor" sanıyordu. Gerçek neden tuşlar değil, kurulum
+aracıydı:
+
+`UiSetupTool`, panelin **kök** `GameObject`'ini kapatıyordu
+(`go.SetActive(false)`), sonra "paneli gizle"mek için içteki `panel`
+çocuğunu kapatıyordu. `DepotView.Open()` ise yalnızca **çocuğu**
+açıyordu. Unity'de inactive bir nesnenin çocuğu da render edilmez —
+komut çalışıyor, hiçbir şey görünmüyordu.
+
+Çözüm: kökler her zaman açık, gizleme yalnızca iç çocukta yapılır.
+`PanelKokleriAcikKalmali` testi bu kuralı koruyor.
+
+Ayrıca **`Tab` Unity Editor tarafından yutuluyor** (odak değiştirme).
+Bu yüzden birincil eylem tuşu `E` yapıldı, `Tab` alias kaldı; HUD
+her an ne yapılabileceğini yazıyor.
+
+### HUD yerleşimi
+
+Para/seviye paneli ve minimap **sol alta** alındı (istek üzerine):
+bilgi paneli sol alt köşede, minimap hemen sağında, hedef/ipucu
+metinleri alt orta. Eskiden HUD sol üstte, minimap sağ üstteydi.
+
 ### Bu aşamada olmayanlar
 
 Yakıt, görevler (Mission) ve kayıt (Save) hâlâ yok. Yakıt Aşama 2'de
@@ -467,9 +560,34 @@ birlikte çalışması daha doğru olur.
 - **`Time.fixedDeltaTime` kalıcı değiştirilemez.** Unity 6 bunu
   `TimeManager.asset` içinde rasyonel olarak saklar (`m_Count / m_Numerator`).
   Ayar aracı YAML'ı bu formata göre günceller.
-- **Blender kurulu değil.** MVP görselleri Unity primitive'leriyle yapılacak.
+- **Blender kurulu değil.** Görseller hazır **CC0** model
+  paketlerinden geliyor (bkz. *Görseller*), Blender'a gerek yok.
 
 ### Bilinen Unity tuzakları (bu projede yaşandı)
+
+**0. Editor kurulum aracı, nesne silmeden "temizlik" yaparsa yığılmaya
+yol açar.**
+`DeliverySetupTool.BuildMarkers` her çağrıda yeni bir `DeliveryStops`
+kökü açıyor, eski işaretleri silmeyi de o **yeni boş** kökte
+arıyordu. Arama hiçbir şey bulamadığı için işaretler üst üste
+birikiyordu: harita iki kez kurulunca 14 noktaya karşılık sahnede
+**28** ped vardı. Oyuncu aynı hedefi iki kez görüyordu.
+
+İki düzeltme yapıldı: (a) temizlik artık tüm sahne köklerini tarayarak
+`DeliveryStops` kopyalarını siliyor, (b) `DurakIsaretleriSahnede`
+testi artık sadece "var mı" değil, **sayının harita nokta sayısına
+birebir eşit** olduğunu doğruluyor. (Eski test `> 0` idi ve 28 ped'de
+sessizce geçiyordu.)
+
+**0b. Mesh'lerin yerel sınırlarını birleştirirken transform'un
+kendisi hesaba katılmalı.**
+Araç modelini ölçerken `MeshFilter.sharedMesh.bounds` değerleri
+doğrudan `Encapsulate` edildi. Ancak Kenney modelinde tekerler modelin
+içinde kaydırılmış alt nesneler; kendi transform'ları yok sayılınca
+tekerler modelin merkezinde varsayılıyor ve **Y boyutu 3.23 m** gibi
+yanlış çıktı (doğrusu 2.13 m). Çözüm: her mesh'in 8 köşesi
+`Transform.TransformPoint` ile istenen uzaya taşınarak birleştirilir.
+Bu yöntem `Renderer.bounds`'un kare gecikmesinden de etkilenmez.
 
 **1. Script assembly taşınırsa eski asset'ler bozulur.**
 Unity, ScriptableObject ve MonoBehaviour asset'lerine

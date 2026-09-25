@@ -62,22 +62,35 @@ namespace KargoSim.EditorTools
         /// </summary>
         private static void BuildMarkers(MapLayout layout)
         {
-            Transform root = null;
+            // Onceki isaretleri ONCE tamamen temizle.
+            //
+            // Neden: eski surumde her calistirmada yeni bir "DeliveryStops"
+            // koku olusturuluyor, temizlik de o yeni bos kokte
+            // araniyordu. Hicbir sey bulunamayinca isaretler UST USTE
+            // birikiyordu (harita iki kez kurulunca sahnede 28 ped).
+            StopMarker[] old = Object.FindObjectsByType<StopMarker>(FindObjectsSortMode.None);
+            for (int i = 0; i < old.Length; i++)
+                Object.DestroyImmediate(old[i].gameObject);
+
+            // Temizlikten sonra bos kalan kokleri de kaldir. GameObject.Find
+            // yalnizca ILK eslesmeyi dondurur; harita birkac kez kurulduysa
+            // birden fazla kop olabilir, bu yuzden tum kokler taranir.
+            var roots = EditorSceneManager.GetActiveScene().GetRootGameObjects();
+            for (int i = 0; i < roots.Length; i++)
+            {
+                if (roots[i].name == "DeliveryStops")
+                    Object.DestroyImmediate(roots[i]);
+            }
+
+            var rootGo = new GameObject("DeliveryStops");
+            rootGo.transform.position = Vector3.zero;
+            Transform root = rootGo.transform;
+
             for (int i = 0; i < layout.deliveryPoints.Count; i++)
             {
                 DeliveryPointData point = layout.deliveryPoints[i];
 
-                if (root == null)
-                {
-                    var rootGo = new GameObject("DeliveryStops");
-                    rootGo.transform.position = Vector3.zero;
-                    root = rootGo.transform;
-                }
-
-                // Eski isareti temizle (yeniden calistirilabilir olsun)
-                var existing = root.Find("Stop_" + point.id);
-                if (existing != null) Object.DestroyImmediate(existing.gameObject);
-
+                // Eski isaret temizligi yukarida toplu olarak yapildi.
                 var go = new GameObject("Stop_" + point.id);
                 go.transform.SetParent(root, false);
                 go.transform.position = point.position + new Vector3(0f, 0.06f, 0f);
@@ -117,7 +130,17 @@ namespace KargoSim.EditorTools
         {
             const string path = "Assets/Art/Materials/DeliveryMarker.mat";
             var existing = AssetDatabase.LoadAssetAtPath<Material>(path);
-            if (existing != null) return existing;
+            if (existing != null)
+            {
+                // Eski material yanlis emission keyword tasiyordu
+                // ("_EMISSION_COLOR" degil "_EMISSION") ve 0.25 gri additive
+                // emission tanimliydi. Additive emission taban rengini
+                // boguyor; renkli isaretler ekranda BEYAZ gorunuyordu.
+                // Var olan material de duzeltilir.
+                ApplyMarkerMaterialSettings(existing);
+                EditorUtility.SetDirty(existing);
+                return existing;
+            }
 
             Shader shader = Shader.Find("Universal Render Pipeline/Lit");
             if (shader == null)
@@ -127,15 +150,24 @@ namespace KargoSim.EditorTools
             }
 
             var material = new Material(shader);
-            material.color = Color.white;
-            material.SetColor("_BaseColor", Color.white);
-
-            // Emissive: isaretler gece/golge okunur kalsin
-            material.EnableKeyword("_EMISSIVE_COLOR");
-            material.SetColor("_EmissionColor", new Color(0.25f, 0.25f, 0.25f));
-
+            ApplyMarkerMaterialSettings(material);
             AssetDatabase.CreateAsset(material, path);
             return material;
+        }
+
+        /// <summary>
+        /// Isaret materyalinin ayarlari.
+        /// EMISSION KAPALI: isaretler zeminde yatar ve yonelmis isikla
+        /// aydinlanir, ek isiye gerek yok; additive emission taban
+        /// rengini boguyordu.
+        /// </summary>
+        private static void ApplyMarkerMaterialSettings(Material material)
+        {
+            material.SetColor("_BaseColor", Color.white);
+            material.DisableKeyword("_EMISSION");
+            material.SetColor("_EmissionColor", Color.black);
+            material.SetFloat("_Smoothness", 0.1f);
+            material.SetFloat("_Metallic", 0f);
         }
 
         /// <summary>
@@ -230,10 +262,64 @@ namespace KargoSim.EditorTools
                                 ") eslesmiyor. Kargolar bos adres alabilir.");
             }
 
+            VerifyMarkerColors(problems);
+
             if (problems.Length == 0)
-                Debug.Log("[Kargo] Dogrulama OK: tum adres kimligi benzersiz.");
+                Debug.Log("[Kargo] Dogrulama OK: adres kimligi benzersiz, isaret renkleri uygulandi.");
             else
                 Debug.LogError("[Kargo] Dogrulama BASARISIZ:" + problems);
+        }
+
+        /// <summary>
+        /// Isaret renklerinin gercekten uygulandigini dogrular.
+        ///
+        /// Once ekranda isaretler beyaz gorunuyordu. Iki olasi sebep vardi:
+        /// (a) additive emission taban rengini boguyordu,
+        /// (b) MaterialPropertyBlock yazilmamis.
+        /// Ayirt etmek icin bloktan okunan rengi okuyoruz.
+        /// </summary>
+        private static void VerifyMarkerColors(System.Text.StringBuilder problems)
+        {
+            var markers = Object.FindObjectsByType<StopMarker>(FindObjectsSortMode.None);
+            if (markers.Length == 0)
+            {
+                problems.Append(" Sahnede durak isareti yok.");
+                return;
+            }
+
+            int painted = 0;   // rengi yazilmis isaret
+            int distinct = 0;  // aktif durak disinda gercekten renkli isaret
+            for (int i = 0; i < markers.Length; i++)
+            {
+                Renderer renderer = markers[i].GetComponentInChildren<Renderer>();
+                if (renderer == null) continue;
+
+                var block = new MaterialPropertyBlock();
+                renderer.GetPropertyBlock(block);
+
+                if (!block.HasProperty("_BaseColor")) continue;
+                painted++;
+
+                // Aktif durak BILEREK beyazdir (hedef vurgusu yerine
+                // gecici olarak). O yuzden "beyaz olmamali" degil,
+                // "hicbiri renkli degil" diye kontrol ediyoruz.
+                if (block.GetColor("_BaseColor") != Color.white) distinct++;
+            }
+
+            if (painted == 0)
+            {
+                problems.Append(" hicbir isaretin rengi yazilmamis (MaterialPropertyBlock bos). " +
+                                "Isaretler ekranda beyaz gorunecek.");
+            }
+            else if (distinct == 0)
+            {
+                problems.Append(" isaretler beyaz: emission taban rengi boguyor olabilir.");
+            }
+            else
+            {
+                Debug.Log("[Kargo] Isaret kontrolu: " + painted + " isaretin rengi yazildi, " +
+                          distinct + " / " + markers.Length + " tanesi renkli.");
+            }
         }
     }
 }

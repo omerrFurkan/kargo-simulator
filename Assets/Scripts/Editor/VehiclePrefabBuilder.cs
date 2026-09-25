@@ -29,6 +29,15 @@ namespace KargoSim.EditorTools
         [MenuItem("Kargo/Vehicle/Arac Prefabini Kur", priority = 30)]
         public static void Build()
         {
+            // Hazir model (Kenney Car Kit) projeye alinmisse onu kullan.
+            // Primitive yol yalnizca model bulunamadiginda devreye girer;
+            // boylece oyun her zaman surulebilir bir aracla acilir.
+            if (KenneyAssetSetup.IsKitAvailable())
+            {
+                KenneyAssetSetup.BuildVehicleModel();
+                return;
+            }
+
             EnsureFolders();
 
             VehicleDefinition definition = CreateVehicleDefinition();

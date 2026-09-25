@@ -28,8 +28,7 @@ namespace KargoSim.UI
     {
         [Header("Gorunumler")]
         [SerializeField] private HudView hud;
-        [SerializeField] private DepotView depotView;
-        [SerializeField] private StopView stopView;
+        [SerializeField] private DepotView depotView;        [SerializeField] private StopView stopView;
         [SerializeField] private DaySummaryView summaryView;
         [SerializeField] private MinimapView minimap;
 
@@ -38,8 +37,13 @@ namespace KargoSim.UI
         [SerializeField] private float depotRadius = 12f;
 
         [Header("Klavye")]
-        [SerializeField] private KeyCode depotToggleKey = KeyCode.Tab;
+        [Tooltip("Bağlamsal onay: depoda panel açar ve seçili kargoyu yükler, " +
+                 "durakta teslim yapar.\n" +
+                 "TAB bu tusun alternatifi olarak birakildi ama Unity EDITORU " +
+                 "Tab'i odak degistirmek icin kullanir - Editor'de calismaz, " +
+                 "build'de calisir. Bu yuzden E birincil.")]
         [SerializeField] private KeyCode confirmKey = KeyCode.E;
+        [SerializeField] private KeyCode depotToggleKey = KeyCode.Tab;
         [SerializeField] private KeyCode unloadAllKey = KeyCode.Q;
         [SerializeField] private KeyCode closeKey = KeyCode.Escape;
 
@@ -130,41 +134,83 @@ namespace KargoSim.UI
         private void HandleInput()
         {
             bool atDepot = IsAtDepot();
+            bool depotOpen = depotView != null && depotView.IsOpen;
 
-            // --- Panel ac/kapa ---
-            if (Input.GetKeyDown(depotToggleKey))
-            {
-                if (depotView != null && depotView.IsOpen) depotView.Close();
-                else if (atDepot) OpenDepot();
-            }
-
+            // --- Esc: her seyi kapat ---
             if (Input.GetKeyDown(closeKey))
             {
                 depotView?.Close();
+                stopView?.Hide();
                 summaryView?.Hide();
             }
 
-            // --- Depo ---
-            if (depotView != null && depotView.IsOpen)
+            // --- Tab: alternatif depo ac/kapa (Editor'de yutulur) ---
+            if (Input.GetKeyDown(depotToggleKey))
             {
-                // 1-9 rakamlariyla secim degistir
+                if (depotOpen) depotView.Close();
+                else if (atDepot) OpenDepot();
+            }
+
+            // --- Depo paneli: rakam tuslari secim, Q bosaltir ---
+            if (depotOpen)
+            {
                 for (int i = 0; i < 9; i++)
                 {
-                    if (!Input.GetKeyDown(KeyCode.Alpha1 + i)) continue;
-                    depotView.ToggleSelection(i);
+                    if (Input.GetKeyDown(KeyCode.Alpha1 + i)) depotView.ToggleSelection(i);
                 }
 
-                if (Input.GetKeyDown(confirmKey)) depotView.LoadSelected();
                 if (Input.GetKeyDown(unloadAllKey)) _cargo.UnloadVehicle();
             }
 
-            // --- Teslim (durak basinda) ---
-            if (Input.GetKeyDown(confirmKey) &&
-                (depotView == null || !depotView.IsOpen) &&
-                _delivery != null && _delivery.CurrentStop != null)
+            // --- E: baglamsal onay ---
+            if (Input.GetKeyDown(confirmKey))
             {
-                DeliverNext();
+                if (depotOpen)
+                {
+                    // Panel acikken E: secili kargoyu yukle (panel acik kalir,
+                    // birden fazla kargo yuklenebilsin diye)
+                    if (atDepot) depotView.LoadSelected();
+                }
+                else if (atDepot)
+                {
+                    OpenDepot();
+                }
+                else if (_delivery != null && _delivery.CurrentStop != null)
+                {
+                    DeliverNext();
+                }
             }
+
+            UpdateHint(atDepot, depotOpen);
+        }
+
+        /// <summary>
+        /// Oyuncuya ANLIK ne yapabilecegini yazar. Kimse 10 deneme
+        /// yapip dogru tusu bulmamali.
+        /// </summary>
+        private void UpdateHint(bool atDepot, bool depotOpen)
+        {
+            if (hud == null) return;
+
+            if (_delivery != null && _delivery.CurrentStop != null)
+            {
+                hud.SetHint("[E] Teslim et    |    [Esc] Kapat");
+                return;
+            }
+
+            if (depotOpen)
+            {
+                hud.SetHint("[1-9] Kargo sec    |    [E] Yukle    |    [Q] Bosalt    |    [Esc] Kapat");
+                return;
+            }
+
+            if (atDepot)
+            {
+                hud.SetHint("[E] Depoyu ac");
+                return;
+            }
+
+            hud.SetHint("Depo: mavi alan    |    Hedef: renkli kare");
         }
 
         /// <summary>Duraktaki siradaki kargoyu teslim eder.</summary>

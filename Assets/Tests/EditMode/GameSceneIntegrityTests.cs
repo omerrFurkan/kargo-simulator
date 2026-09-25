@@ -167,9 +167,39 @@ namespace KargoSim.Tests
         }
 
         [Test]
-        public void DurakIsaretleriSahnede()
+        public void PanelKokleriAcikKalmali()
+        {
+            // Regresyon: UiSetupTool panel nesnelerinin GameObject'ini
+            // inactive birakiyordu. Cocuk bir panel acsa bile (SetActive(true))
+            // gorunmez cunku GameObject inactive iken cocugu da render
+            // edilmez. Oyuncu "Tab/E calismiyor" saniyordu.
+            var depot = UnityEngine.Object.FindFirstObjectByType<UI.DepotView>();
+            var stop = UnityEngine.Object.FindFirstObjectByType<UI.StopView>();
+            var summary = UnityEngine.Object.FindFirstObjectByType<UI.DaySummaryView>();
+
+            Assert.IsNotNull(depot, "DepotView yok.");
+            Assert.IsNotNull(stop, "StopView yok.");
+            Assert.IsNotNull(summary, "DaySummaryView yok.");
+
+            Assert.IsTrue(depot.gameObject.activeInHierarchy,
+                "Depot panelinin GameObject'i kapali: acilma komutu etkisiz kalir.");
+            Assert.IsTrue(stop.gameObject.activeInHierarchy,
+                "Teslimat panelinin GameObject'i kapali.");
+            Assert.IsTrue(summary.gameObject.activeInHierarchy,
+                "Gun sonu panelinin GameObject'i kapali.");
+        }
+
+        [Test]
+        public void DurakIsaretleriSahnedeVeMukerrerDegil()
         {
             // Noktalar haritada görünmezse oyuncu hedefi arayamaz.
+            //
+            // Regresyon: eski BuildMarkers her çalıştırmada yeni bir
+            // "DeliveryStops" kökü açıp temizliği o boş kökte arıyordu.
+            // Sonuç: harita iki kez kurulunca sahnede 28 ped birikiyordu
+            // (14 noktaya karşılık 28 isaret) ve oyuncu aynı hedefi iki
+            // kez görüyordu. Varlık kontrolü ("> 0") bunu kaçırıyordu;
+            // bu yüzden sayı artık harita verisiyle birebir eşleşmeli.
             int markers = 0;
             var all = _scene.GetRootGameObjects();
             for (int i = 0; i < all.Length; i++)
@@ -179,6 +209,16 @@ namespace KargoSim.Tests
 
             Assert.Greater(markers, 0,
                 "Sahnede durak işareti yok - hedefler dünyada görünmüyor. " +
+                "Menu: Kargo/4. Harita ve Teslimat Noktalarini Kur");
+
+            var layout = AssetDatabase.LoadAssetAtPath<Delivery.MapLayout>(
+                "Assets/ScriptableObjects/Database/MapLayout.asset");
+            Assert.IsNotNull(layout, "MapLayout.asset bulunamadi.");
+
+            Assert.AreEqual(layout.deliveryPoints.Count, markers,
+                "Sahnedeki durak işareti sayısı harita nokta sayısıyla eşleşmiyor. " +
+                "Muhtemelen harita iki kez kuruldu ve eski işaretler silinmedi " +
+                "(her noktaya birden fazla renkli ped bindirmiş olabilir). " +
                 "Menu: Kargo/4. Harita ve Teslimat Noktalarini Kur");
         }
 
