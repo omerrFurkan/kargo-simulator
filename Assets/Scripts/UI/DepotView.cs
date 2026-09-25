@@ -31,6 +31,41 @@ namespace KargoSim.UI
         /// <summary>Depodaki kargo sayisi (test/hud icin).</summary>
         public int RowCount => _rows.Count;
 
+        /// <summary>
+        /// Secili satirlarin kargo referanslari - YUKLEME YAPMADAN.
+        ///
+        /// Kargo artik fiziksel: once karakter kargoyu tasir, ancak o
+        /// ANDA mantik sistemine bildirilir. Bu yuzden UI once secimi
+        /// sorup kurye ajanina devreder.
+        /// </summary>
+        public List<Parcel> SelectedParcels()
+        {
+            var result = new List<Parcel>();
+            if (_cargo == null) return result;
+
+            // Sirali: HashSet sirasi garanti degil, oyuncu "1, 2, 3"
+            // dediginde sirayla yuklemesini bekler.
+            var indices = new List<int>(_selected);
+            indices.Sort();
+
+            for (int i = 0; i < indices.Count; i++)
+            {
+                int index = indices[i];
+                if (index < 0 || index >= _cargo.Manifest.AvailableCount) continue;
+                result.Add(_cargo.Manifest.Available[index]);
+            }
+
+            return result;
+        }
+
+        /// <summary>Secimi temizler ve listeyi yeniler.</summary>
+        public void ClearSelection()
+        {
+            if (_selected.Count == 0) return;
+            _selected.Clear();
+            Refresh();
+        }
+
         public void Open(CargoSystem cargo)
         {
             _cargo = cargo;

@@ -57,10 +57,10 @@ neden açılmıyor" belirsizliği kalmaz.
 ### Testler
 
 EditMode testleri formülleri ve sahne bütünlüğünü, PlayMode testleri
-gerçek fizik motorunda sürüşü doğrular (**138 + 7 test**).
+gerçek fizik motorunda sürüşü doğrular (**145 + 7 test**).
 
 ```powershell
-# EditMode (138 test)
+# EditMode (145 test)
 & "C:\Program Files\Unity\Hub\Editor\6000.3.25f1\Editor\Unity.exe" `
   -runTests -batchmode -nographics -projectPath "D:\KargoSimulator" `
   -testPlatform EditMode -testResults "D:\KargoSimulator\editmode.xml"
@@ -146,7 +146,7 @@ Assets/
 ├── Scenes/Game.unity     TEK sahne
 ├── Scripts/
 │   ├── Core/             GameConfig, GameEvents, GameClock, GameCompositionRoot
-│   ├── Player/           PlayerController, CameraFollow, PlayerProgress
+│   ├── Player/           PlayerController, CameraFollow, PlayerProgress, CourierAgent, ParcelVisual
 │   ├── Vehicle/          VehicleDefinition, IVehicleInput, ArcadeVehicleController
 │   ├── Cargo/            Parcel, ParcelType, ParcelGenerator, CargoManifest, CargoSystem
 │   ├── Delivery/         MapLayout, DeliveryStop, RoutePlanner, DeliverySystem, StopMarker
@@ -154,7 +154,7 @@ Assets/
 │   ├── Mission/          (Aşama 6)
 │   ├── UI/               UIManager, HUD, Depot, Stop, DaySummary, Minimap
 │   ├── Save/             (Aşama 7)
-│   └── Editor/           7 kurulum aracı (Project / Vehicle / Kenney / Content / Delivery / Progression / UI)
+│   └── Editor/           8 kurulum aracı (Project / Vehicle / Kenney / Content / Delivery / Progression / UI / Courier)
 ├── ScriptableObjects/
 │   ├── Definitions/      VehicleDefinition, Parcels/ (6 ParcelType)
 │   └── Database/GameConfig.asset, MapLayout.asset, EconomyConfig.asset
@@ -182,6 +182,7 @@ açık, düşük poligonlu **hazır paketler** kullanılıyor.
 | Paket | Kaynak | Lisans | Kullanım |
 |---|---|---|---|
 | Car Kit 3.1 | [kenney.nl/assets/car-kit](https://kenney.nl/assets/car-kit) | **CC0 1.0** | Kurye aracı (`delivery.fbx`) + 50 model |
+| Mini Characters 1.0 | [kenney.nl/assets/mini-characters](https://kenney.nl/assets/mini-characters) | **CC0 1.0** | Kurye karakteri (`character-male-a.fbx`, rigged, 32 klip) |
 
 **CC0 ne demek:** Telif hakkı tamamen kamu malıdır. Ticari kullanım
 serbest, izin istemek zorunlu değil, atıf zorunlu değil. Yine de
@@ -212,6 +213,56 @@ silindir tekerler takılıydı ve hiç dönmüyordu.)
 **Güvenli geri dönüş:** Hazır model kurulu değilse `VehiclePrefabBuilder`
 primitive yola düşer. Yani paket silinse bile oyun yine sürülebilir
 bir araçla açılır.
+
+---
+
+## Kurye ve fiziksel kargo
+
+Kargo artık **listedeki satıra tıklamakla değil, taşınarak** yüklenir.
+Karakter aracı kullanmaz; sürüş yine araçla yapılır.
+
+| Durum | Ne olur |
+|---|---|
+| Depoda `E` | Depo listesi açılır |
+| `1-9` + `E` | Seçilen kargo için karakter aracından inip depoya yürür, kargoyu alır (`pick-up`), araca döner ve yükler |
+| Adreste `E` | Karakter aracından inip adrese yürür, kargoyu bırakır (`interact-right`) ve aracına döner |
+
+**Anlık yükleme yok.** Karakter van'a varıp animasyonu bitirmeden kargo
+"yüklü" sayılmaz; teslim süresi de tam o andan başlar. Bu yüzden
+oyuncu acele edip süreyi kendi kaybetmez.
+
+**Karakter yürürken araç kilitlenir** (`ArcadeVehicleController.ControlsLocked`).
+Oyuncu aynı anda hem yürüyüp hem araç kullanamaz — "ben mi yürüyorum,
+araç mı?" belirsizliği oluşmaz.
+
+**HUD ipucu** o anki durumu yazar (`Kurye: Depodan kargo alınıyor` gibi),
+böylece karakter neden hareket ediyor anlaşılır.
+
+### Neden ayrı bir katman
+
+`CargoSystem` ve `DeliverySystem` **saf durum mantığıdır**: kargo
+yüklendiğinde "yüklü" derler. Onlar test edilebilir ve deterministik
+kalmalıdır. `CourierAgent` ise o anın **görselini ve zamanını** yönetir:
+yürür, animasyon oynatır, *sonra* mantık sistemine "şimdi yükle" der.
+
+Böylece fiziksel tasıma eklenirken deterministik çekirdek testleri
+hiç değişmedi. 7 yeni `CourierAgentTests` bu ayrımı korur — en
+önemlisi `YurumeBitmedenKargoYuklenmez`.
+
+### Kullanılan animasyonlar
+
+Kenney Mini Characters 32 klip içerir; yalnızca beşi kullanılır
+(kullanılmayan klip runtime'da bellek yeridir):
+
+| Klip | Süre | Kullanım |
+|---|---|---|
+| `idle` | 1.33 s | bekleme |
+| `walk` | 0.67 s | yürüme |
+| `pick-up` | 0.33 s | kargo alma |
+| `holding-both` | 0.17 s | kargo taşıma |
+| `interact-right` | 0.67 s | teslim |
+
+Menü: `Kargo → 7. Kurye Karakterini Kur`
 
 ---
 
@@ -264,6 +315,7 @@ Detaylı oynanış: bakınız *Aşama 6 — Arayüz*.
 | `Vehicle/ArcadeVehicleController` | Fizik: motor, fren, direksiyon, yanal tutunma, downforce, takla koruması |
 | `Player/PlayerController` | Klavye → girdi |
 | `Player/CameraFollow` | Takip kamerası, hıza göre FOV |
+| `Player/CourierAgent` | Kargoyu depodan araca ve adresten araca taşıyan karakter |
 | `Editor/VehiclePrefabBuilder` | Prefab'ı üretir, sahneye koyar, doğrular |
 | `Editor/KenneyAssetSetup` | Hazır CC0 modeli (Kenney Car Kit) içe alır, aracı bu modelle üretir |
 | `Vehicle/WheelVisual` | Teker mesh'ini `WheelCollider` pozuna kilitler (dönme + direksiyon) |

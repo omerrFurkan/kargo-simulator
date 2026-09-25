@@ -46,6 +46,11 @@ namespace KargoSim.Core
         [Tooltip("Arayuz yoneticisi. Bos birakilirsa oyun HUD'suz oynanir.")]
         [SerializeField] private UI.UIManager uiManager;
 
+        [Header("Kurye")]
+        [Tooltip("Kargoyu arac disinda tasayan karakter. Bos birakilirsa " +
+                 "kargo arayuzden aninda yuklenir (fiziksel tasima olmaz).")]
+        [SerializeField] private Player.CourierAgent courierAgent;
+
         private GameClock _clock;
         private CargoSystem _cargo;
         private Delivery.DeliverySystem _delivery;
@@ -79,6 +84,7 @@ namespace KargoSim.Core
 
             CreateCargoSystem();
             CreateDeliverySystem();
+            CreateCourier();
             CreateEconomy();
 
             // Gun dongusunu DIŞARIDAN dinlemek: saat degisimi once
@@ -180,6 +186,36 @@ namespace KargoSim.Core
             }
 
             uiManager.Bind(_cargo, _delivery, _progress, _clock, mapLayout, _playerVehicleTransform);
+            uiManager.SetCourier(courierAgent);
+        }
+
+        /// <summary>
+        /// Kurye karakterini hazirlar. Sistemler kurulduktan SONRA
+        /// cagrilir: ajan kargo ve teslimat sistemlerine ihtiyac duyar.
+        ///
+        /// Ajan yoksa oyun yine calisir - kargo arayuzden aninda
+        /// yuklenir, sadece fiziksel tasima olmaz.
+        /// </summary>
+        private void CreateCourier()
+        {
+            if (courierAgent == null)
+            {
+                Debug.LogWarning(
+                    "[GameCompositionRoot] CourierAgent atanmadi; kargo arayuzden " +
+                    "aninda yuklenecek (karakterle tasima yok). " +
+                    "Menu: Kargo/7. Kurye Karakterini Kur", this);
+                return;
+            }
+
+            if (_cargo == null || _delivery == null)
+            {
+                Debug.LogWarning("[GameCompositionRoot] Kargo/teslimat sistemi yok, " +
+                                 "kurye kurulmadi.", this);
+                return;
+            }
+
+            Vector3 depot = mapLayout != null ? mapLayout.depotPosition : Vector3.zero;
+            courierAgent.Configure(_cargo, _delivery, _playerVehicleTransform, depot);
         }
 
         // ------------------------------------------------------------------
@@ -231,6 +267,11 @@ namespace KargoSim.Core
         {
             uiManager = ui;
         }
+
+        public void SetCourierForSetup(Player.CourierAgent courier)
+        {
+            courierAgent = courier;
+        }
 #endif
 
         private void Start()
@@ -260,6 +301,10 @@ namespace KargoSim.Core
                 if (_economy != null)
                     _economy.ElapsedProvider = _delivery.Elapsed;
             }
+
+            // Kurye de ayni kareden surulur: yurume ve teslim suresi
+            // simülasyonla ayni zamanda aksin.
+            courierAgent?.Tick(dt);
 
             // Arayuz de oyunun TEK Update cagrisindan surulur.
             if (uiManager != null) uiManager.Tick(dt);

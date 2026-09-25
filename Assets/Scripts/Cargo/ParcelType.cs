@@ -51,6 +51,15 @@ namespace KargoSim.Cargo
         /// <summary>Depo listesinde renk olarak gosterilebilir (0 = normal).</summary>
         public bool isRare;
 
+        [Header("Gorsel")]
+        [Tooltip("Dunya ve depodaki kutu rengi. Oyuncunun kargoyu " +
+                 "turunu/turuncusu ile ayirt etmesini saglar.")]
+        public Color color = new Color(0.80f, 0.60f, 0.32f);
+
+        [Tooltip("Kutunun kenar uzunlugu (metre). Gercek hacim/agirligi " +
+                 "TEMSIL eder, fizik hesabini etkilemez.")]
+        [Range(0.15f, 1.2f)] public float boxSize = 0.42f;
+
         private void OnValidate()
         {
             if (minWeightKg <= 0f) minWeightKg = 0.1f;
@@ -66,6 +75,7 @@ namespace KargoSim.Cargo
             // guvenlik agi var (clamp).
             if (baseSuccessRate < 0f) baseSuccessRate = 0f;
             if (baseSuccessRate > 1f) baseSuccessRate = 1f;
+            if (boxSize < 0.15f) boxSize = 0.15f;
         }
 
         /// <summary>
@@ -81,6 +91,7 @@ namespace KargoSim.Cargo
             if (paymentPerKg < 0f) paymentPerKg = 0f;
             if (baseSuccessRate < 0f) baseSuccessRate = 0f;
             if (baseSuccessRate > 1f) baseSuccessRate = 1f;
+            if (boxSize < 0.15f) boxSize = 0.15f;
         }
     }
 }

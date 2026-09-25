@@ -146,15 +146,22 @@ namespace KargoSim.EditorTools
         /// <summary>
         /// Modelin mesh'lerini kapsayan sinirlari toplar.
         ///
+        /// Iki tur mesh birlikte taranir:
+        ///  - MeshFilter  -> statik mesh'ler (kenney arac govdesi)
+        ///  - SkinnedMeshRenderer -> RIGGED mesh'ler (kurye karakteri).
+        ///    Rigged karakterlerde Unity MeshFilter EKLEMEZ; mesh'i
+        ///    SkinnedMeshRenderer'in uzerinde tasir. Sadece MeshFilter
+        ///    aranirsa karakter "meshi yok" sanilir ve olceklenmez.
+        ///
         /// Kritik: her mesh kendi yerel transform'unu tasir (tekerler
-        /// modelinIcinde kaydirilmis durumda). MeshFilter.sharedMesh.bounds
+        /// modelin icinde kaydirilmis durumda). MeshFilter.sharedMesh.bounds
         /// YEREL oldugu icin, transform'lari hesaba katmadan
         /// Encapsulate edersek tekerleri modelin merkezinde varsayip
         /// yanlis bir boyut cikar (Y 3.23 m gibi). Bu yuzden her mesh'in
         /// 8 kösesi Transform.TransformPoint ile istenen uzaya
         /// tasinir; Renderer.bounds'un kare gecikmesi sorunu da olmaz.
         /// </summary>
-        private static bool TryGetMeshBounds(GameObject model, out Bounds bounds)
+        internal static bool TryGetMeshBounds(GameObject model, out Bounds bounds)
         {
             bool first = true;
             bounds = default;
@@ -162,24 +169,35 @@ namespace KargoSim.EditorTools
             foreach (MeshFilter f in model.GetComponentsInChildren<MeshFilter>(true))
             {
                 if (f.sharedMesh == null) continue;
+                EncapsulateTransformed(model, f.sharedMesh, f.transform, ref first, ref bounds);
+            }
 
-                Bounds mesh = f.sharedMesh.bounds;
-                Transform t = f.transform;
-
-                for (int corner = 0; corner < 8; corner++)
-                {
-                    var local = new Vector3(
-                        (corner & 1) == 0 ? mesh.min.x : mesh.max.x,
-                        (corner & 2) == 0 ? mesh.min.y : mesh.max.y,
-                        (corner & 4) == 0 ? mesh.min.z : mesh.max.z);
-
-                    Vector3 p = t.TransformPoint(local);
-                    if (first) { bounds = new Bounds(p, Vector3.zero); first = false; }
-                    else bounds.Encapsulate(p);
-                }
+            foreach (SkinnedMeshRenderer s in model.GetComponentsInChildren<SkinnedMeshRenderer>(true))
+            {
+                if (s.sharedMesh == null) continue;
+                EncapsulateTransformed(model, s.sharedMesh, s.transform, ref first, ref bounds);
             }
 
             return !first;
+        }
+
+        /// <summary>Bir mesh'in 8 kösesini istenen uzaya tasip sinirlara ekler.</summary>
+        private static void EncapsulateTransformed(GameObject model, Mesh mesh, Transform owner,
+                                                   ref bool first, ref Bounds bounds)
+        {
+            Bounds meshBounds = mesh.bounds;
+
+            for (int corner = 0; corner < 8; corner++)
+            {
+                var local = new Vector3(
+                    (corner & 1) == 0 ? meshBounds.min.x : meshBounds.max.x,
+                    (corner & 2) == 0 ? meshBounds.min.y : meshBounds.max.y,
+                    (corner & 4) == 0 ? meshBounds.min.z : meshBounds.max.z);
+
+                Vector3 p = owner.TransformPoint(local);
+                if (first) { bounds = new Bounds(p, Vector3.zero); first = false; }
+                else bounds.Encapsulate(p);
+            }
         }
 
         /// <summary>

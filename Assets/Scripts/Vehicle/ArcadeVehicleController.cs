@@ -54,6 +54,14 @@ namespace KargoSim.Vehicle
         /// <summary>Arac ileri yone bakiyor mu? Geri vites kontrolu icin.</summary>
         public float ForwardSpeed => _rb == null ? 0f : Vector3.Dot(_rb.linearVelocity, transform.forward);
 
+        /// <summary>
+        /// Arac girdisi gecici olarak kapatilir (karakter yururken).
+        /// Kurye ajani kargoyu arac disinda tasidigi icin oyuncu bu
+        /// sirada surusemez; boylece "ben mi yuruyorum arac mi?"
+        /// belirsizligi olusmaz.
+        /// </summary>
+        public bool ControlsLocked { get; set; }
+
         // ------------------------------------------------------------------
         // Yasam dongusu
         // ------------------------------------------------------------------
@@ -163,6 +171,17 @@ namespace KargoSim.Vehicle
         private void FixedUpdate()
         {
             if (_rb == null || definition == null || wheels == null || wheels.Length < 4) return;
+
+            // Karakter arac disindayken (kargo tasirken) gecersiz.
+            // Boylece oyuncu ayni anda hem yuruyup hem arac kullanmaz.
+            if (ControlsLocked)
+            {
+                ApplySteering(0f);
+                ApplyBrakes(definition.brakeForce, true);
+                ApplyDownforce();
+                ApplyAntiFlip();
+                return;
+            }
 
             float throttle = _input != null ? _input.Throttle : 0f;
             float steer = _input != null ? _input.Steer : 0f;

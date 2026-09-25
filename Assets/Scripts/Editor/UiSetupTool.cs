@@ -51,6 +51,9 @@ namespace KargoSim.EditorTools
             BuildUI();
             Debug.Log("[Kargo] 6/6 arayuz");
 
+            CourierSetupTool.Build();
+            Debug.Log("[Kargo] 7/7 kurye karakteri");
+
             Debug.Log("[Kargo] === Tam kurulum bitti ===");
         }
 

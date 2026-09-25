@@ -28,7 +28,8 @@ namespace KargoSim.UI
     {
         [Header("Gorunumler")]
         [SerializeField] private HudView hud;
-        [SerializeField] private DepotView depotView;        [SerializeField] private StopView stopView;
+        [SerializeField] private DepotView depotView;
+        [SerializeField] private StopView stopView;
         [SerializeField] private DaySummaryView summaryView;
         [SerializeField] private MinimapView minimap;
 
@@ -53,7 +54,18 @@ namespace KargoSim.UI
         private GameClock _clock;
         private MapLayout _layout;
         private Transform _vehicle;
+        private Player.CourierAgent _courier;
         private bool _bound;
+
+        /// <summary>
+        /// Kurye ajanini baglar. Kargo ve teslim artik fiziksel:
+        /// UI dogrudan yuklemez, karakteri gorevlendirir.
+        /// Baglanmazsa oyun yine calisir (kargo aninda yuklenir).
+        /// </summary>
+        public void SetCourier(Player.CourierAgent courier)
+        {
+            _courier = courier;
+        }
 
         // ------------------------------------------------------------------
         // Baglama
@@ -159,17 +171,30 @@ namespace KargoSim.UI
                     if (Input.GetKeyDown(KeyCode.Alpha1 + i)) depotView.ToggleSelection(i);
                 }
 
-                if (Input.GetKeyDown(unloadAllKey)) _cargo.UnloadVehicle();
+                if (Input.GetKeyDown(unloadAllKey))
+                {
+                    _cargo.UnloadVehicle();
+                    // Araç içindeki kutu gorselleri de kalmasin.
+                    _courier?.ClearVanVisuals();
+                }
             }
 
             // --- E: baglamsal onay ---
             if (Input.GetKeyDown(confirmKey))
             {
+                // Karakter kargoyu tasiyorsa yeni istek kabul edilmez;
+                // oyuncu once bitmesini bekler.
+                if (_courier != null && _courier.IsBusy)
+                {
+                    UpdateHint(atDepot, depotOpen);
+                    return;
+                }
+
                 if (depotOpen)
                 {
-                    // Panel acikken E: secili kargoyu yukle (panel acik kalir,
-                    // birden fazla kargo yuklenebilsin diye)
-                    if (atDepot) depotView.LoadSelected();
+                    // Panel acikken E: secili kargoyu yuklet. Kurye
+                    // varsa fiziksel (yurur), yoksa dogrudan.
+                    RequestLoadSelected();
                 }
                 else if (atDepot)
                 {
@@ -177,11 +202,34 @@ namespace KargoSim.UI
                 }
                 else if (_delivery != null && _delivery.CurrentStop != null)
                 {
-                    DeliverNext();
+                    RequestDeliverNext();
                 }
             }
 
             UpdateHint(atDepot, depotOpen);
+        }
+
+        /// <summary>
+        /// Secili kargolari araca yukletir. Kurye ajani varsa karakter
+        /// teker teker tasir; yoksa eski aninda yukleme yolu kullanilir.
+        /// </summary>
+        private void RequestLoadSelected()
+        {
+            if (_cargo == null || depotView == null) return;
+
+            var parcels = depotView.SelectedParcels();
+            if (parcels.Count == 0) return;
+
+            if (_courier != null)
+            {
+                _courier.QueueLoad(parcels);
+                depotView.ClearSelection();
+                return;
+            }
+
+            // Kurye yoksa yedek yol: dogrudan yukle.
+            foreach (Parcel parcel in parcels) _cargo.TryLoadParcel(parcel.Id);
+            depotView.ClearSelection();
         }
 
         /// <summary>
@@ -191,6 +239,14 @@ namespace KargoSim.UI
         private void UpdateHint(bool atDepot, bool depotOpen)
         {
             if (hud == null) return;
+
+            // Karakter kargoyu tasiyorsa o anki durumu goster: oyuncu
+            // neden bir tusa basamiyor sorusunu ekrana bakarak anlar.
+            if (_courier != null && _courier.IsBusy)
+            {
+                hud.SetHint("Kurye: " + _courier.StatusText);
+                return;
+            }
 
             if (_delivery != null && _delivery.CurrentStop != null)
             {
@@ -213,8 +269,11 @@ namespace KargoSim.UI
             hud.SetHint("Depo: mavi alan    |    Hedef: renkli kare");
         }
 
-        /// <summary>Duraktaki siradaki kargoyu teslim eder.</summary>
-        private void DeliverNext()
+        /// <summary>
+        /// Duraktaki siradaki kargoyu adrese teslim eder. Kurye varsa
+        /// karakter yuruyup birakir.
+        /// </summary>
+        private void RequestDeliverNext()
         {
             DeliveryStop stop = _delivery.CurrentStop;
             if (stop == null || stop.PendingCount == 0) return;
@@ -225,6 +284,12 @@ namespace KargoSim.UI
                 if (stop.Parcels[i] != null && stop.Parcels[i].IsActive) { parcel = stop.Parcels[i]; break; }
             }
             if (parcel == null) return;
+
+            if (_courier != null)
+            {
+                _courier.QueueDeliver(parcel);
+                return;
+            }
 
             _delivery.TryDeliver(parcel.Id);
         }
