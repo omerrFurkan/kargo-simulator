@@ -12,6 +12,9 @@ namespace KargoSim.Cargo
 
         /// <summary>Araca yuklendi. Teslimat bekliyor (Aşama 4).</summary>
         LoadedOnVehicle = 1,
+
+        /// <summary>Teslim edildi. Artik listeden cikar (Aşama 4).</summary>
+        Delivered = 2,
     }
 
     /// <summary>
@@ -47,6 +50,21 @@ namespace KargoSim.Cargo
         public ParcelState State { get; private set; }
 
         /// <summary>
+        /// Kargo araca YUKLENDIGI an (sistem saati, saniye).
+        /// Teslim suresi buradan isler, gun basindan degil.
+        /// </summary>
+        public float TimeLoaded { get; private set; } = -1f;
+
+        /// <summary>Araca yuklendi mi (yoksa teslim mi)?</summary>
+        public bool IsLoaded => State == ParcelState.LoadedOnVehicle;
+
+        /// <summary>Teslim edildi mi?</summary>
+        public bool IsDelivered => State == ParcelState.Delivered;
+
+        /// <summary>Hala oyunda mi (depo, araç veya teslim)?</summary>
+        public bool IsActive => State != ParcelState.Delivered;
+
+        /// <summary>
         /// Taban deger (TL). Oncelik carpani DAHIL DEGIL: odeme hesabini
         /// ekonomi sistemi yapar (Aşama 5). Burada sadece kargonun kendi
         /// degeri duruyor, boylece iki yer hesap yapmaz.
@@ -70,10 +88,34 @@ namespace KargoSim.Cargo
         }
 
         /// <summary>Araca yuklendi. Manifest tarafindan cagrilir.</summary>
-        public void MarkLoaded() => State = ParcelState.LoadedOnVehicle;
+        public void MarkLoaded(float systemTime)
+        {
+            State = ParcelState.LoadedOnVehicle;
+            TimeLoaded = systemTime;
+        }
+
+        /// <summary>Teslim edildi (Aşama 4). Artik araçta degildir.</summary>
+        public void MarkDelivered() => State = ParcelState.Delivered;
 
         /// <summary>Depoya geri alindi (gun sonu bos arac vb.).</summary>
-        public void MarkReturnedToDepot() => State = ParcelState.WaitingInDepot;
+        public void MarkReturnedToDepot()
+        {
+            State = ParcelState.WaitingInDepot;
+            TimeLoaded = -1f;
+        }
+
+        /// <summary>
+        /// Teslim icin kalan sure (saniye). Negatifse sure dolmus demektir.
+        /// Henuz yuklenmediyse tam sure verilir.
+        /// </summary>
+        public float RemainingSeconds(float systemTime)
+        {
+            if (!IsLoaded) return DeadlineSeconds;
+            return DeadlineSeconds - (systemTime - TimeLoaded);
+        }
+
+        /// <summary>Sure doldu mu?</summary>
+        public bool IsOverdue(float systemTime) => IsLoaded && RemainingSeconds(systemTime) <= 0f;
 
         /// <summary>
         /// Kisa, okunur etiket. UI'da kullanilir; tek yerde tutulur ki

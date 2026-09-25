@@ -481,6 +481,8 @@ MonoBehaviour:
   - {fileID: 11400000, guid: 5ec8482fe0211f4449672a0077def9ad, type: 2}
   - {fileID: 11400000, guid: 63afbcfde01c5a346ac30859faa7b270, type: 2}
   playerVehicle: {fileID: 11400000, guid: 97d81a2ba59c3f5418208e8200e50923, type: 2}
+  mapLayout: {fileID: 11400000, guid: 54a422dfda074d1438998b1de3e27f12, type: 2}
+  arrivalRadius: 7
 --- !u!4 &1173324809
 Transform:
   m_ObjectHideFlags: 0

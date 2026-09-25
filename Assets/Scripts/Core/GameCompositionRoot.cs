@@ -29,13 +29,26 @@ namespace KargoSim.Core
                  "hicbir kargo araca sigmaz.")]
         [SerializeField] private Vehicle.VehicleDefinition playerVehicle;
 
+        [Header("Harita")]
+        [Tooltip("Teslimat noktalari. Bos birakilirsa hicbir adrese " +
+                 "gidilemez.")]
+        [SerializeField] private Delivery.MapLayout mapLayout;
+
+        [Header("Teslimat")]
+        [Tooltip("Arac bu yaricap icindeyse adrese varmiş sayilir (metre).")]
+        [SerializeField] private float arrivalRadius = 7f;
+
         private GameClock _clock;
         private CargoSystem _cargo;
+        private Delivery.DeliverySystem _delivery;
+        private Transform _playerVehicleTransform;
 
         public GameConfig Config => config;
         public GameClock Clock => _clock;
         public CargoSystem Cargo => _cargo;
+        public Delivery.DeliverySystem Delivery => _delivery;
         public Vehicle.VehicleDefinition PlayerVehicle => playerVehicle;
+        public Delivery.MapLayout MapLayout => mapLayout;
 
         private void Awake()
         {
@@ -50,7 +63,20 @@ namespace KargoSim.Core
             }
 
             _clock = new GameClock(config);
+            _playerVehicleTransform = FindPlayerVehicle();
+
             CreateCargoSystem();
+            CreateDeliverySystem();
+        }
+
+        /// <summary>
+        /// Oyuncunun aracini bulur. Sarma (wrapper) bir MonoBehaviour olmadigi
+        /// icin GetComponent ile degil, sahnedeki VehicleController aranir.
+        /// </summary>
+        private Transform FindPlayerVehicle()
+        {
+            var vehicle = FindAnyObjectByType<Vehicle.ArcadeVehicleController>();
+            return vehicle != null ? vehicle.transform : null;
         }
 
         /// <summary>
@@ -72,6 +98,28 @@ namespace KargoSim.Core
             _cargo = new CargoSystem(config, parcelTypes, playerVehicle);
         }
 
+        private void CreateDeliverySystem()
+        {
+            if (_cargo == null)
+            {
+                Debug.LogWarning(
+                    "[GameCompositionRoot] Kargo sistemi yok, teslimat sistemi " +
+                    "olusturulmadi.", this);
+                return;
+            }
+
+            if (mapLayout == null)
+            {
+                Debug.LogWarning(
+                    "[GameCompositionRoot] MapLayout atanmadi; adreslere gidilemeyecek. " +
+                    "Menu: Kargo/4. Harita ve Teslimat Noktalarini Kur", this);
+                return;
+            }
+
+            _delivery = new Delivery.DeliverySystem(mapLayout, _cargo, arrivalRadius);
+            _delivery.BeginDay();
+        }
+
 #if UNITY_EDITOR
         /// <summary>
         /// Yalnizca editor kurulum araclari icin. Inspector'dan elle atama
@@ -84,6 +132,12 @@ namespace KargoSim.Core
         {
             parcelTypes = types;
             playerVehicle = vehicle;
+        }
+
+        public void SetMapForSetup(Delivery.MapLayout layout, float radius)
+        {
+            mapLayout = layout;
+            arrivalRadius = radius;
         }
 #endif
 
@@ -100,7 +154,18 @@ namespace KargoSim.Core
         private void Update()
         {
             // Oyunun tek zamanlayici cagrisi.
-            _clock.Tick(Time.deltaTime);
+            float dt = Time.deltaTime;
+
+            _clock.Tick(dt);
+
+            // Teslimat sistemi aracin konumunu okur; araci tanimaz.
+            if (_delivery != null)
+            {
+                if (_playerVehicleTransform != null)
+                    _delivery.VehiclePosition = _playerVehicleTransform.position;
+
+                _delivery.Tick(dt, _clock.IsPaused);
+            }
         }
     }
 }

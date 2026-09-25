@@ -69,6 +69,29 @@ namespace KargoSim.Cargo
                 if (parcels[i] != null) _available.Add(parcels[i]);
         }
 
+        /// <summary>
+        /// Teslim edilen kargoyu listeden cikarir.
+        ///
+        /// Onemli: teslim edilen kargo depoya GERI DONDURULMEZ, tamamen
+        /// cikarilir. Aksi halde teslim ettikten sonra rota yeniden
+        /// kuruldugunda ayni adrese tekrar gidilirdi.
+        /// </summary>
+        public bool MarkDelivered(Parcel parcel)
+        {
+            if (parcel == null) return false;
+            if (!_loaded.Remove(parcel)) return false;
+
+            LoadedWeightKg -= parcel.WeightKg;
+            LoadedVolumeLiters -= parcel.VolumeLiters;
+
+            // Yuvarlama birikmesi sonrasi kapasiteyi asmasin diye.
+            if (LoadedWeightKg < 0f) LoadedWeightKg = 0f;
+            if (LoadedVolumeLiters < 0f) LoadedVolumeLiters = 0f;
+
+            parcel.MarkDelivered();
+            return true;
+        }
+
         /// <summary>Araci bosaltir (gun sonu veya teslim hatalari).</summary>
         public void UnloadAll()
         {
@@ -83,8 +106,14 @@ namespace KargoSim.Cargo
         /// <summary>
         /// Kargoyu araca yukler. Iki kapasinin da sigmasi gerekir.
         /// </summary>
+        /// <param name="parcel">Yuklenecek kargo.</param>
+        /// <param name="systemTime">
+        /// Simulasyon saati (saniye). Kargonun teslim suresi bu andan itibaren
+        /// islemeye baslar. Varsayilan deger 0 - testler ve gun ilk kargolari
+        /// icin uygundur.
+        /// </param>
         /// <returns>Basariliysa true, sigmiyorsa false (liste degismez).</returns>
-        public bool TryLoad(Parcel parcel)
+        public bool TryLoad(Parcel parcel, float systemTime = 0f)
         {
             if (parcel == null) return false;
             if (!Capacity.IsValid) return false;
@@ -94,7 +123,7 @@ namespace KargoSim.Cargo
 
             _available.Remove(parcel);
             _loaded.Add(parcel);
-            parcel.MarkLoaded();
+            parcel.MarkLoaded(systemTime);
 
             LoadedWeightKg += parcel.WeightKg;
             LoadedVolumeLiters += parcel.VolumeLiters;

@@ -1,0 +1,58 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: d816447e2cccb9b449db74b6a7e7ddc5, type: 3}
+  m_Name: MapLayout
+  m_EditorClassIdentifier: KargoSim.Runtime::KargoSim.Delivery.MapLayout
+  depotPosition: {x: 0, y: 0, z: 0}
+  deliveryPoints:
+  - id: 0
+    displayName: Ev #1
+    position: {x: 55, y: 0, z: 0}
+  - id: 1
+    displayName: Apartman #2
+    position: {x: 38.890873, y: 0, z: 38.890873}
+  - id: 2
+    displayName: Market #3
+    position: {x: -0.0000024041265, y: 0, z: 55}
+  - id: 3
+    displayName: Is Merkezi #4
+    position: {x: -38.890873, y: 0, z: 38.890873}
+  - id: 4
+    displayName: Kucuk Isletme #5
+    position: {x: -55, y: 0, z: -0.000004808253}
+  - id: 5
+    displayName: Ev #6
+    position: {x: -38.890865, y: 0, z: -38.89088}
+  - id: 6
+    displayName: Apartman #7
+    position: {x: 0.00000065586846, y: 0, z: -55}
+  - id: 7
+    displayName: Market #8
+    position: {x: 38.890884, y: 0, z: -38.890858}
+  - id: 8
+    displayName: Is Merkezi #9
+    position: {x: 82.272415, y: 0, z: 47.5}
+  - id: 9
+    displayName: Kucuk Isletme #10
+    position: {x: -0.000004152582, y: 0, z: 95}
+  - id: 10
+    displayName: Ev #11
+    position: {x: -82.272415, y: 0, z: 47.500004}
+  - id: 11
+    displayName: Apartman #12
+    position: {x: -82.2724, y: 0, z: -47.500015}
+  - id: 12
+    displayName: Market #13
+    position: {x: 0.0000011328636, y: 0, z: -95}
+  - id: 13
+    displayName: Is Merkezi #14
+    position: {x: 82.27243, y: 0, z: -47.499977}

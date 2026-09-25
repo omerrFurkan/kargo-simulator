@@ -57,7 +57,7 @@ neden açılmıyor" belirsizliği kalmaz.
 ### Testler
 
 EditMode testleri formülleri ve sahne bütünlüğünü, PlayMode testleri
-gerçek fizik motorunda sürüşü doğrular (**69 + 7 test**).
+gerçek fizik motorunda sürüşü doğrular (**94 + 7 test**).
 
 ```powershell
 # EditMode (36 test)
@@ -141,7 +141,7 @@ Assets/
 │   ├── Player/           PlayerController, CameraFollow
 │   ├── Vehicle/          VehicleDefinition, IVehicleInput, ArcadeVehicleController
 │   ├── Cargo/            Parcel, ParcelType, ParcelGenerator, CargoManifest, CargoSystem
-│   ├── Delivery/         (Aşama 4)
+│   ├── Delivery/         MapLayout, DeliveryStop, RoutePlanner, DeliverySystem
 │   ├── Economy/          (Aşama 5)
 │   ├── Mission/          (Aşama 6)
 │   ├── UI/               (Aşama 6)
@@ -149,7 +149,7 @@ Assets/
 │   └── Editor/           ProjectSetupTool
 ├── ScriptableObjects/
 │   ├── Definitions/      VehicleDefinition, Parcels/ (6 ParcelType)
-│   └── Database/GameConfig.asset
+│   └── Database/GameConfig.asset, MapLayout.asset
 ├── Settings/             URP asset + renderer
 ├── Tests/EditMode/       GameClock, araç fiziği, kargo, sahne bütünlüğü
 ├── Tests/PlayMode/       Gerçek fizikte sürüş
@@ -180,13 +180,39 @@ Assets/
 
 ---
 
+---
+
+## Aşama 2 — Araç
+
+| Script | Görevi |
+|---|---|
+| `Vehicle/VehicleDefinition` | Araç özellikleri (SO): hız, tork, fren, direksiyon, tutunma, süspansiyon, **kargo kapasitesi** |
+| `Vehicle/IVehicleInput` | Sürücü sözleşmesi: `Throttle`, `Steer`, `Handbrake`, `RespawnRequested` |
+| `Vehicle/ArcadeVehicleController` | Fizik: motor, fren, direksiyon, yanal tutunma, downforce, takla koruması |
+| `Player/PlayerController` | Klavye → girdi |
+| `Player/CameraFollow` | Takip kamerası, hıza göre FOV |
+| `Editor/VehiclePrefabBuilder` | Prefab'ı primitive'lerden üretir, sahneye koyar, doğrular |
+
+**Tasarım kararı:** Fizik matematiği `static` saf fonksiyonlarda
+(`ComputeSteerAngle`, `ComputeMotorTorque`, `ComputeBrakeTorque`).
+EditMode testleri formülleri sahne açmadan doğrular; PlayMode testleri
+gerçek fizik motorunda sürüşü doğrular.
+
+Menü: `Kargo/Vehicle/Arac Prefabini Kur`
+
+**Tasarım kararı:** Gövdede `BoxCollider` **zorunludur**
+(`[RequireComponent]`). Sadece tekerlerden oluşan bir araç dururken sorunsuz
+durur ama ilk gazda takla atar — PlayMode testinde ölçüldü.
+
+---
+
 ## Aşama 3 — Kargo sistemi
 
 | Script | Görevi |
 |---|---|
 | `Cargo/ParcelType` (SO) | Kargo türü tanımı: ağırlık/hacim aralığı, kg başına ücret, kırılabilirlik |
 | `Cargo/ParcelPriority` | Öncelik enum'u + ödeme/süre/başarı çarpanları |
-| `Cargo/ParcelState` | Beklemede ↔ araçta |
+| `Cargo/ParcelState` | Beklemede / aracta / teslim edildi |
 | `Cargo/Parcel` | Tek kargonun verisi (saf C#) |
 | `Cargo/ParcelGenerator` | Günlük kargo üretimi — **deterministik** (`System.Random` + gün tohumu) |
 | `Cargo/CargoManifest` | Depo listesi + araç yükü, **ağırlık VE hacim** kontrolü |
@@ -220,23 +246,56 @@ yer hesap yapmaz.
 
 ---
 
-## Aşama 2 — Araç
+## Aşama 4 — Teslimat sistemi
 
 | Script | Görevi |
 |---|---|
-| `Vehicle/VehicleDefinition` | Araç özellikleri (SO): hız, tork, fren, direksiyon, tutunma, süspansiyon, **kargo kapasitesi** |
-| `Vehicle/IVehicleInput` | Sürücü sözleşmesi: `Throttle`, `Steer`, `Handbrake`, `RespawnRequested` |
-| `Vehicle/ArcadeVehicleController` | Fizik: motor, fren, direksiyon, yanal tutunma, downforce, takla koruması |
-| `Player/PlayerController` | Klavye → girdi |
-| `Player/CameraFollow` | Takip kamerası, hıza göre FOV |
-| `Editor/VehiclePrefabBuilder` | Prefab'ı primitive'lerden üretir, sahneye koyar, doğrular |
+| `Delivery/MapLayout` (SO) | Teslimat noktaları (id + konum) + depo konumu |
+| `Delivery/DeliveryOutcome` | Başarılı / geç kaldı / başarısız + ödeme çarpanı |
+| `Delivery/DeliveryStop` | Bir adrese gidecek kargolar (aynı adres = tek durak) |
+| `Delivery/RoutePlanner` | En-yakın-komşu rota sıralaması (saf, statik) |
+| `Delivery/DeliverySystem` | Süre takibi, varış algısı, teslim, gün sonu |
+| `Editor/DeliverySetupTool` | 14 teslimat noktası üretir (iki halka), sahneye bağlar |
 
-**Tasarım kararı:** Fizik matematiği `static` saf fonksiyonlarda
-(`ComputeSteerAngle`, `ComputeMotorTorque`, `ComputeBrakeTorque`).
-EditMode testleri formülleri sahne açmadan doğrular; PlayMode testleri
-gerçek fizik motorunda sürüşü doğrular.
+Menü: `Kargo/4. Harita ve Teslimat Noktalarini Kur`
 
-Menü: `Kargo/Vehicle/Arac Prefabini Kur` → prefab + sahnede arac + kamera.
+### Süre yüklenme anından işler
+
+Teslim süresi gün başında değil, kargo **araca yüklendiği anda** başlar.
+
+Nedeni: Gün başında başlasaydı 12 kargonun hepsi aynı anda dolar ve süre
+kavramı anlamını yitirdi. Yüklenmeden başlayınca "çok kargo yükleme" ile
+"az kargo yükleme" arasında gerçek bir tercih ortaya çıkıyor.
+
+### Rota neden basit
+
+En-yakın-komşu (greedy) kullanılıyor. Optimal çözüm (TSP) 14 noktada bile
+pahalı ve oyuncuya kazancı görünmez; önemli olan oyuncunun sırayı
+**görebilmesi** (Aşama 6'da minimapta çizilecek). Rota, giriş listesini
+değiştirmeden sıralı kopya döndürür — yan etkisiz ve test edilebilir.
+
+### Teslimat sonucu
+
+| Sonuç | Koşul | Etki |
+|---|---|---|
+| `Success` | süre dolmadan | tam ödeme + XP |
+| `Late` | süre geçtikten sonra | kısmi ödeme, az XP |
+| `Failed` | gün sonunda teslim edilmemiş | ödeme yok, itibar kaybı |
+
+Para ve XP **Aşama 5**. `DeliverySystem` yalnızca sonucu bilir;
+hesaplamayı ekonomi sistemi yapar.
+
+### Rota kendini iyileştirir
+
+Rota, event'e değil **yüklü kargo sayısına** bakarak yenilenir. Kargo
+başka bir yoldan yüklenirse (test, ileride araç değişimi) rota bayat
+kalmaz. Test bunu doğruluyor.
+
+### Bu aşamada olmayanlar
+
+Binalar, yollar, görsel teslimat noktaları **Aşama 8**. Şu an
+`MapLayout` iki halkadan oluşan geçici bir ızgaradır; Aşama 8'de aynı
+kimlikli gerçek binalar bu konumlara bindirilecek — asset değişmeyecek.
 
 ---
 
@@ -248,7 +307,7 @@ Menü: `Kargo/Vehicle/Arac Prefabini Kur` → prefab + sahnede arac + kamera.
 | 2 | Player + araç kontrolü | ✅ |
 | 3 | Kargo sistemi | ⬜ |
 | 3 | Kargo sistemi | ⬜ |
-| 4 | Teslimat sistemi | ⬜ |
+| 4 | Teslimat sistemi | ✅ |
 | 5 | Para + XP sistemi | ⬜ |
 | 6 | UI | ⬜ |
 | 7 | Save/Load | ⬜ |

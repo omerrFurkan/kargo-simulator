@@ -1,5 +1,6 @@
 using System.IO;
 using KargoSim.Core;
+using KargoSim.Delivery;
 using NUnit.Framework;
 using UnityEditor;
 using UnityEditor.SceneManagement;
@@ -128,6 +129,29 @@ namespace KargoSim.Tests
             Assert.IsNotNull(vehicle.objectReferenceValue,
                 "Composition Root'a arac tanimi baglanmadi - hicbir kargo araca sigmaz. " +
                 "Menu: Kargo/Vehicle/Arac Prefabini Kur");
+
+            SerializedProperty layout = so.FindProperty("mapLayout");
+            Assert.IsNotNull(layout, "mapLayout alani bulunamadi.");
+            Assert.IsNotNull(layout.objectReferenceValue,
+                "Composition Root'a MapLayout baglanmadi - hicbir adrese gidilemez. " +
+                "Menu: Kargo/4. Harita ve Teslimat Noktalarini Kur");
+        }
+
+        [Test]
+        public void HaritaNoktaSayisiOyunAyariylaUyumlu()
+        {
+            // destinationCount ile MapLayout nokta sayisi eslesmezse
+            // kargolarin bir kismi var olmayan adres alir ve oyuncu
+            // neden teslim edemedigini anlamaz.
+            var layout = AssetDatabase.LoadAssetAtPath<Delivery.MapLayout>(
+                "Assets/ScriptableObjects/Database/MapLayout.asset");
+            var config = AssetDatabase.LoadAssetAtPath<GameConfig>(
+                "Assets/ScriptableObjects/Database/GameConfig.asset");
+
+            Assert.IsNotNull(layout, "MapLayout.asset bulunamadi.");
+            Assert.IsNotNull(config, "GameConfig.asset bulunamadi.");
+            Assert.AreEqual(config.destinationCount, layout.deliveryPoints.Count,
+                "GameConfig.destinationCount ile MapLayout nokta sayisi eslesmiyor.");
         }
     }
 }

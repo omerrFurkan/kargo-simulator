@@ -60,6 +60,26 @@ namespace KargoSim.Core
 
         public static void RaiseCargoChanged() => CargoChanged?.Invoke();
 
+        // ---- Teslimat (Aşama 4) ----
+
+        /// <summary>Arac bir teslimat duragina vardi. UI burada yonlendirir.</summary>
+        public static event Action<Delivery.DeliveryStop> DeliveryStopArrived;
+
+        /// <summary>Bir kargo teslim edildi (basarili, gec veya basarisiz).</summary>
+        public static event Action<Cargo.Parcel, Delivery.DeliveryOutcome> ParcelDelivered;
+
+        /// <summary>Rota yeniden siralandi (kargo yuklendi veya teslim edildi).</summary>
+        public static event Action RouteChanged;
+
+        public static void RaiseDeliveryStopArrived(Delivery.DeliveryStop stop) =>
+            DeliveryStopArrived?.Invoke(stop);
+
+        public static void RaiseParcelDelivered(Cargo.Parcel parcel,
+                                                Delivery.DeliveryOutcome outcome) =>
+            ParcelDelivered?.Invoke(parcel, outcome);
+
+        public static void RaiseRouteChanged() => RouteChanged?.Invoke();
+
         /// <summary>
         /// Editor ayarlarinda "Domain Reload: Disabled" kullanildigi icin statik
         /// event'ler Play'den cikarken temizlenmez. Play'e girildiginde hepsini
@@ -75,6 +95,9 @@ namespace KargoSim.Core
             ParcelsGenerated = null;
             ParcelLoaded = null;
             CargoChanged = null;
+            DeliveryStopArrived = null;
+            ParcelDelivered = null;
+            RouteChanged = null;
         }
     }
 }
