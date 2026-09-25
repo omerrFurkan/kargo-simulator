@@ -473,6 +473,14 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: KargoSim.Runtime::KargoSim.Core.GameCompositionRoot
   config: {fileID: 11400000, guid: e0b4a4fd4fea3b846a44c7f73bcef2a0, type: 2}
+  parcelTypes:
+  - {fileID: 11400000, guid: 9a4cb0a4a4483144ba6b985bede9c9e1, type: 2}
+  - {fileID: 11400000, guid: 7b8f309546f7f0249b731e520fe4f2e2, type: 2}
+  - {fileID: 11400000, guid: c94426769d1730c43a9e27176fb225e7, type: 2}
+  - {fileID: 11400000, guid: c7f725e261e531640b3fc26934e70ade, type: 2}
+  - {fileID: 11400000, guid: 5ec8482fe0211f4449672a0077def9ad, type: 2}
+  - {fileID: 11400000, guid: 63afbcfde01c5a346ac30859faa7b270, type: 2}
+  playerVehicle: {fileID: 11400000, guid: 97d81a2ba59c3f5418208e8200e50923, type: 2}
 --- !u!4 &1173324809
 Transform:
   m_ObjectHideFlags: 0

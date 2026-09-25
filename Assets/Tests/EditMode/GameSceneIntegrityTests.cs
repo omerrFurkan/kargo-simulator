@@ -99,5 +99,35 @@ namespace KargoSim.Tests
             }
             Assert.IsTrue(found, "Game.unity Build Settings listesinde etkin degil.");
         }
+
+        [Test]
+        public void CompositionRootKargoIcerigiBagli()
+        {
+            var roots = _scene.GetRootGameObjects();
+            GameCompositionRoot root = null;
+            foreach (var go in roots)
+            {
+                root = go.GetComponent<GameCompositionRoot>();
+                if (root != null) break;
+            }
+            Assert.IsNotNull(root, "GameCompositionRoot bulunamadi.");
+
+            // Bu baglar yoksa oyun sessizce acilir ama HICBIR kargo
+            // uretilmez - oyuncunun karsilasmasi en kotu senaryo.
+            var so = new SerializedObject(root);
+            SerializedProperty types = so.FindProperty("parcelTypes");
+            SerializedProperty vehicle = so.FindProperty("playerVehicle");
+
+            Assert.IsNotNull(types, "parcelTypes alani bulunamadi.");
+            Assert.IsNotNull(vehicle, "playerVehicle alani bulunamadi.");
+
+            Assert.Greater(types.arraySize, 0,
+                "Composition Root'a hic ParcelType baglanmadi - kargo uretilmez. " +
+                "Menu: Kargo/3. Icerik Assetlerini Kur");
+
+            Assert.IsNotNull(vehicle.objectReferenceValue,
+                "Composition Root'a arac tanimi baglanmadi - hicbir kargo araca sigmaz. " +
+                "Menu: Kargo/Vehicle/Arac Prefabini Kur");
+        }
     }
 }

@@ -64,6 +64,15 @@ namespace KargoSim.Vehicle
         [Tooltip("Arac dururken devrilmisse kendini kaldirma hizi (derece/sn).")]
         [Range(10f, 360f)] public float autoUprightSpeed = 120f;
 
+        [Header("Kargo Kapasitesi")]
+        [Tooltip("Tasinanabilecek azami agirlik (kg).")]
+        [Min(1f)] public float cargoCapacityKg = 350f;
+
+        [Tooltip("Tasinanabilecek azami hacim (litre). Agirlik ve hacim AYRI " +
+                 "sinirlardir; ikisi de dolmali, yoksa devasa ama bos " +
+                 "paketlerle sinirsiz yuk tasinabilirdi.")]
+        [Min(1f)] public float cargoCapacityLiters = 900f;
+
         [Header("Suspension (Teker)")]
         [Tooltip("Tekerin yerden uzanma mesafesi (m).")]
         [Min(0.05f)] public float suspensionDistance = 0.3f;
@@ -85,6 +94,8 @@ namespace KargoSim.Vehicle
             if (maxReverseSpeed < 1f) maxReverseSpeed = 1f;
             if (wheelRadius < 0.05f) wheelRadius = 0.05f;
             if (mass < 100f) mass = 100f;
+            if (cargoCapacityKg < 1f) cargoCapacityKg = 1f;
+            if (cargoCapacityLiters < 1f) cargoCapacityLiters = 1f;
         }
     }
 }

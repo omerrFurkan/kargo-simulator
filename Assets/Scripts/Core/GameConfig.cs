@@ -29,6 +29,19 @@ namespace KargoSim.Core
                  "Oyun ici gun sayaci her zaman duraklar, bu sadece UI debounce icindir.")]
         public bool pauseClockOnFocusLoss = true;
 
+        [Header("Kargo")]
+        [Tooltip("Gun basina depoda belirecek kargo sayisi.")]
+        [Range(1, 40)] public int parcelsPerDay = 12;
+
+        [Tooltip("Normal oncelikli bir kargonun temel teslim suresi (saniye). " +
+                 "Hizli/acil kargolarda bu sure carpanlarla kisalir. " +
+                 "300 = 5 dakikalik bir gun icinde 5 dakika.")]
+        [Range(30f, 1200f)] public float baseDeliverySeconds = 300f;
+
+        [Tooltip("Hedef adres sayisi. Kargolar 0..buSayi-1 arasinda bir " +
+                 "adrese atanir. Gercek koordinatlar Aşama 4'te baglanir.")]
+        [Range(1, 60)] public int destinationCount = 14;
+
         private void OnValidate()
         {
             if (dayLengthSeconds < 30f) dayLengthSeconds = 30f;

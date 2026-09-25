@@ -1,0 +1,23 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: b3d3becd833a1824187cace59a0f5c65, type: 3}
+  m_Name: ParcelType_Belge
+  m_EditorClassIdentifier: KargoSim.Runtime::KargoSim.Cargo.ParcelType
+  displayName: Belge
+  minWeightKg: 0.4
+  maxWeightKg: 1.2
+  minVolumeLiters: 1
+  maxVolumeLiters: 3
+  paymentPerKg: 35
+  fragile: 0
+  baseSuccessRate: 0.95
+  isRare: 0

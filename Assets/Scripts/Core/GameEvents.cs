@@ -30,6 +30,21 @@ namespace KargoSim.Core
         /// <summary>Saat duraklatildi / devam ediyor. Parametre: duraklatildi mi?</summary>
         public static event Action<bool> ClockPauseChanged;
 
+        // ---- Kargo (Aşama 3) ----
+
+        /// <summary>Yeni gunun kargolari uretildi. Parametre: kargo sayisi.</summary>
+        public static event Action<int> ParcelsGenerated;
+
+        /// <summary>Bir kargo araca yuklendi.</summary>
+        public static event Action<Cargo.Parcel> ParcelLoaded;
+
+        /// <summary>
+        /// Kargo durumu degisti (uretim, yukleme, bosaltma).
+        /// UI'nin tek abone olup her seyi dinlemesi icin bir "toplu" olay:
+        /// ayri ayri dinlemek yerine buna baglanmak yeterlidir.
+        /// </summary>
+        public static event Action CargoChanged;
+
         public static void RaiseDayStarted(int day) => DayStarted?.Invoke(day);
 
         public static void RaiseDayEnded(int day) => DayEnded?.Invoke(day);
@@ -38,6 +53,12 @@ namespace KargoSim.Core
             DayProgressChanged?.Invoke(progress, hourOfDay);
 
         public static void RaiseClockPauseChanged(bool paused) => ClockPauseChanged?.Invoke(paused);
+
+        public static void RaiseParcelsGenerated(int count) => ParcelsGenerated?.Invoke(count);
+
+        public static void RaiseParcelLoaded(Cargo.Parcel parcel) => ParcelLoaded?.Invoke(parcel);
+
+        public static void RaiseCargoChanged() => CargoChanged?.Invoke();
 
         /// <summary>
         /// Editor ayarlarinda "Domain Reload: Disabled" kullanildigi icin statik
@@ -51,6 +72,9 @@ namespace KargoSim.Core
             DayEnded = null;
             DayProgressChanged = null;
             ClockPauseChanged = null;
+            ParcelsGenerated = null;
+            ParcelLoaded = null;
+            CargoChanged = null;
         }
     }
 }

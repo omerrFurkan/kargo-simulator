@@ -2,7 +2,7 @@
 
 Unity 6 ile geliştirilen, kargo/kurye simülasyon oyunu.
 
-**Durum:** Aşama 1 (proje + çekirdek) tamamlandı. Henüz oynanabilir değil.
+**Durum:** Aşama 1-3 tamamlandı (proje + araç + kargo). Henüz oynanabilir değil — teslimat, para ve UI yok.
 
 ---
 
@@ -57,7 +57,7 @@ neden açılmıyor" belirsizliği kalmaz.
 ### Testler
 
 EditMode testleri formülleri ve sahne bütünlüğünü, PlayMode testleri
-gerçek fizik motorunda sürüşü doğrular (**36 + 7 test**).
+gerçek fizik motorunda sürüşü doğrular (**69 + 7 test**).
 
 ```powershell
 # EditMode (36 test)
@@ -138,9 +138,9 @@ Assets/
 ├── Scenes/Game.unity     TEK sahne
 ├── Scripts/
 │   ├── Core/             GameConfig, GameEvents, GameClock, GameCompositionRoot
-│   ├── Player/           (Aşama 2)
-│   ├── Vehicle/          (Aşama 2)
-│   ├── Cargo/            (Aşama 3)
+│   ├── Player/           PlayerController, CameraFollow
+│   ├── Vehicle/          VehicleDefinition, IVehicleInput, ArcadeVehicleController
+│   ├── Cargo/            Parcel, ParcelType, ParcelGenerator, CargoManifest, CargoSystem
 │   ├── Delivery/         (Aşama 4)
 │   ├── Economy/          (Aşama 5)
 │   ├── Mission/          (Aşama 6)
@@ -148,10 +148,11 @@ Assets/
 │   ├── Save/             (Aşama 7)
 │   └── Editor/           ProjectSetupTool
 ├── ScriptableObjects/
-│   ├── Definitions/      (Aşama 3+)
+│   ├── Definitions/      VehicleDefinition, Parcels/ (6 ParcelType)
 │   └── Database/GameConfig.asset
 ├── Settings/             URP asset + renderer
-├── Tests/EditMode/       GameClock + sahne bütünlüğü testleri
+├── Tests/EditMode/       GameClock, araç fiziği, kargo, sahne bütünlüğü
+├── Tests/PlayMode/       Gerçek fizikte sürüş
 └── Resources/            boş — MVP'de gerek yok
 ```
 
@@ -177,11 +178,53 @@ Assets/
 
 ---
 
+---
+
+## Aşama 3 — Kargo sistemi
+
+| Script | Görevi |
+|---|---|
+| `Cargo/ParcelType` (SO) | Kargo türü tanımı: ağırlık/hacim aralığı, kg başına ücret, kırılabilirlik |
+| `Cargo/ParcelPriority` | Öncelik enum'u + ödeme/süre/başarı çarpanları |
+| `Cargo/ParcelState` | Beklemede ↔ araçta |
+| `Cargo/Parcel` | Tek kargonun verisi (saf C#) |
+| `Cargo/ParcelGenerator` | Günlük kargo üretimi — **deterministik** (`System.Random` + gün tohumu) |
+| `Cargo/CargoManifest` | Depo listesi + araç yükü, **ağırlık VE hacim** kontrolü |
+| `Cargo/CargoSystem` | Orkestrasyon: gün başında üretim, yükleme isteği, olay yayını |
+| `Editor/ContentSetupTool` | 6 kargo türünü üretir, Composition Root'a bağlar |
+
+Menü: `Kargo/3. Icerik Assetlerini Kur`
+
+### Kapasite iki ayrı sınırdır
+
+| Durum | Sonuç |
+|---|---|
+| ağır ama küçük | ağırlık dolar, hacim boş kalır |
+| hafif ama devasa | hacim dolar, ağırlık boş kalır |
+
+Tek sınır olsaydı oyuncu devasa ama boş paketlerle sınırsız yük taşırdı.
+
+### Determinizm neden önemli
+
+`ParcelGenerator` `UnityEngine.Random` değil `System.Random` kullanır ve
+tohumu gün numarasından türetir (`day * 7919`). Aynı gün → aynı kargolar.
+Böylece "5. günde hangi kargolar vardı" sorusu save dosyasından yeniden
+kurulabilir; testler de kararlı olur.
+
+### Bu aşamada olmayanlar (bilinçli)
+
+Teslimat ve ödeme **Aşama 4/5**. `Parcel.DestinationId` şimdilik opak bir
+tamsayı; gerçek koordinatlara Aşama 4'te bağlanacak. `Parcel.BaseValue`
+kargonun kendi değerini tutar, ödeme hesabını ekonomi sistemi yapar — iki
+yer hesap yapmaz.
+
+---
+
 ## Aşama 2 — Araç
 
 | Script | Görevi |
 |---|---|
-| `Vehicle/VehicleDefinition` | Araç özellikleri (SO): hız, tork, fren, direksiyon, tutunma, süspansiyon |
+| `Vehicle/VehicleDefinition` | Araç özellikleri (SO): hız, tork, fren, direksiyon, tutunma, süspansiyon, **kargo kapasitesi** |
 | `Vehicle/IVehicleInput` | Sürücü sözleşmesi: `Throttle`, `Steer`, `Handbrake`, `RespawnRequested` |
 | `Vehicle/ArcadeVehicleController` | Fizik: motor, fren, direksiyon, yanal tutunma, downforce, takla koruması |
 | `Player/PlayerController` | Klavye → girdi |

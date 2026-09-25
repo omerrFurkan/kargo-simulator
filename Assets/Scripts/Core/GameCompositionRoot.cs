@@ -1,3 +1,4 @@
+using KargoSim.Cargo;
 using UnityEngine;
 
 namespace KargoSim.Core
@@ -5,7 +6,7 @@ namespace KargoSim.Core
     /// <summary>
     /// Composition Root: projenin TEK referans noktasi.
     ///
-    /// Tum servisleri (Clock, Economy, Cargo, Delivery...) burada olusturur ve
+    /// Tum servisleri (Clock, Cargo, Economy, Delivery...) burada olusturur ve
     /// birbirine baglar. Sistemler birbirini tanimaz; hepsi buradan enjekte edilir.
     /// Yeni bir sistem eklemek icin: sinifi yaz, burada `new`le, sonra sahneye ekle.
     ///
@@ -18,10 +19,23 @@ namespace KargoSim.Core
         [Header("Veri")]
         [SerializeField] private GameConfig config;
 
+        [Header("Icerik")]
+        [Tooltip("Gunluk kargo turlari. Bos birakilirsa kargo sistemi " +
+                 "hicbir sey uretemez.")]
+        [SerializeField] private ParcelType[] parcelTypes = new ParcelType[0];
+
+        [Header("Arac")]
+        [Tooltip("Kapasitesi kargo sistemine aktarilacak arac. Bos birakilirsa " +
+                 "hicbir kargo araca sigmaz.")]
+        [SerializeField] private Vehicle.VehicleDefinition playerVehicle;
+
         private GameClock _clock;
+        private CargoSystem _cargo;
 
         public GameConfig Config => config;
         public GameClock Clock => _clock;
+        public CargoSystem Cargo => _cargo;
+        public Vehicle.VehicleDefinition PlayerVehicle => playerVehicle;
 
         private void Awake()
         {
@@ -36,6 +50,26 @@ namespace KargoSim.Core
             }
 
             _clock = new GameClock(config);
+            CreateCargoSystem();
+        }
+
+        /// <summary>
+        /// Kargo sistemini kurar. Eksik icerik (parca turu yok) OYUNU
+        /// DUSURMEZ - sadece kargo uretilmez ve konsola bir kez uyari
+        /// yazilir. Aksi halde yeni bir asama eklenirken sahne hazir
+        /// degilse oyun hic acilmazdi.
+        /// </summary>
+        private void CreateCargoSystem()
+        {
+            if (parcelTypes == null || parcelTypes.Length == 0)
+            {
+                Debug.LogWarning(
+                    "[GameCompositionRoot] ParcelType atanmadi; gunluk kargo " +
+                    "uretilmeyecek. Menu: Kargo/3. Icerik Assetlerini Kur", this);
+                return;
+            }
+
+            _cargo = new CargoSystem(config, parcelTypes, playerVehicle);
         }
 
 #if UNITY_EDITOR
@@ -45,6 +79,12 @@ namespace KargoSim.Core
         /// (build) bu metot hic derlenmez.
         /// </summary>
         public void SetConfigForSetup(GameConfig value) => config = value;
+
+        public void SetContentForSetup(ParcelType[] types, Vehicle.VehicleDefinition vehicle)
+        {
+            parcelTypes = types;
+            playerVehicle = vehicle;
+        }
 #endif
 
         private void Start()
@@ -52,6 +92,9 @@ namespace KargoSim.Core
             // Gun 1'i baslat: onceki gun sayaci sifirdan degil, 1'den baslamali.
             GameEvents.RaiseDayStarted(_clock.Day);
             GameEvents.RaiseDayProgressChanged(_clock.DayProgress, _clock.HourOfDay);
+
+            // Gun 1'in kargolari.
+            _cargo?.BeginDay(_clock.Day);
         }
 
         private void Update()
