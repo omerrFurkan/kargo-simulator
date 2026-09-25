@@ -38,6 +38,15 @@ namespace KargoSim.Core
             _clock = new GameClock(config);
         }
 
+#if UNITY_EDITOR
+        /// <summary>
+        /// Yalnizca editor kurulum araclari icin. Inspector'dan elle atama
+        /// yapmamiza gerek kalmasin diye ozel bir kanca; oyun calisirken
+        /// (build) bu metot hic derlenmez.
+        /// </summary>
+        public void SetConfigForSetup(GameConfig value) => config = value;
+#endif
+
         private void Start()
         {
             // Gun 1'i baslat: onceki gun sayaci sifirdan degil, 1'den baslamali.

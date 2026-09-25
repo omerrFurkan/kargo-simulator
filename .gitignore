@@ -46,4 +46,7 @@ desktop.ini
 # ---- Batchmode / editor loglari ----
 /import.log
 /setup.log
+/test.log
+/diag.log
+/testresults.xml
 *.log

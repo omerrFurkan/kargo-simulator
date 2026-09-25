@@ -1,0 +1,19 @@
+{
+    "name": "KargoSim.Editor",
+    "rootNamespace": "KargoSim.EditorTools",
+    "references": [
+        "KargoSim.Runtime",
+        "Unity.RenderPipelines.Universal.Runtime"
+    ],
+    "includePlatforms": [
+        "Editor"
+    ],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": false,
+    "precompiledReferences": [],
+    "autoReferenced": true,
+    "defineConstraints": [],
+    "versionDefines": [],
+    "noEngineReferences": false
+}

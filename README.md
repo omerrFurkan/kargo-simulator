@@ -44,9 +44,28 @@ Elle yapılması gereken onlarca ayar (URP pipeline'i oluşturmak, katmanları t
 | `8. GameConfig Olustur` | Oyun ayarları asset'i |
 | `9. Game Sahnesini Kur` | Sahneyi **sıfırdan** kurar (var olanı siler, onay ister) |
 | `10. Fixed Timestep 0.02` | 50 Hz fizik adımı |
+| `Diagnoz: GameConfig Yukleme` | Asset yüklenemiyorsa nedenini raporlar |
 
 > `9. Game Sahnesini Kur` mevcut sahneyi siler. Toplu kurulum
 > (`1.`) sahneye dokunmaz, sadece yoksa oluşturur.
+
+Kurulum bittikten sonra araç şunu doğrular:
+`GameCompositionRoot.config` referansının kaydedilmiş sahnede gerçekten
+dolu olduğunu okuyup kontrol eder. Referans boşsa hata verir — "oyun
+neden açılmıyor" belirsizliği kalmaz.
+
+### Testler
+
+EditMode testleri `GameClock` mantığını ve sahne bütünlüğünü doğrular (14 test).
+
+```powershell
+& "C:\Program Files\Unity\Hub\Editor\6000.3.25f1\Editor\Unity.exe" `
+  -runTests -batchmode -nographics `
+  -projectPath "D:\KargoSimulator" `
+  -testPlatform EditMode -testResults "D:\KargoSimulator\testresults.xml"
+```
+
+Unity içinden: **Window → General → Test Runner → EditMode → Run All**
 
 Komut satırından da çalıştırılabilir:
 
@@ -126,8 +145,17 @@ Assets/
 │   ├── Definitions/      (Aşama 3+)
 │   └── Database/GameConfig.asset
 ├── Settings/             URP asset + renderer
+├── Tests/EditMode/       GameClock + sahne bütünlüğü testleri
 └── Resources/            boş — MVP'de gerek yok
 ```
+
+### Assembly tanımları (asmdef)
+
+| Dosya | Kapsam |
+|---|---|
+| `Scripts/KargoSim.Runtime.asmdef` | Tüm oyun kodu (Core, Player, Vehicle, ...) |
+| `Scripts/Editor/KargoSim.Editor.asmdef` | Editör araçları, sadece Editor platformunda |
+| `Tests/EditMode/KargoSim.Tests.EditMode.asmdef` | Testler |
 
 ---
 
@@ -168,3 +196,29 @@ Henüz yok. Aşama 2'de (araç) eklenir.
   `TimeManager.asset` içinde rasyonel olarak saklar (`m_Count / m_Numerator`).
   Ayar aracı YAML'ı bu formata göre günceller.
 - **Blender kurulu değil.** MVP görselleri Unity primitive'leriyle yapılacak.
+
+### Bilinen Unity tuzakları (bu projede yaşandı)
+
+**1. Script assembly taşınırsa eski asset'ler bozulur.**
+Unity, ScriptableObject ve MonoBehaviour asset'lerine
+`m_EditorClassIdentifier` (örn. `KargoSim.Runtime::KargoSim.Core.GameConfig`)
+yazar. Script `Assembly-CSharp`'ten `KargoSim.Runtime`'a taşınırsa bu
+kimlik bayat kalır ve `LoadAssetAtPath<T>()` **NULL** döner — üstelik
+`LoadAllAssetsAtPath()` doğru tipi gösterdiği için hata yanıltıcıdır.
+Belirti: sahnede referans GUID'i doğru ama runtime'da boş.
+
+Çözüm: `Library` klasörünü silip projeyi yeniden aç.
+`ProjectSetupTool.LoadGameConfig()` önce `ImportAsset(ForceUpdate)` dener.
+
+**2. `Time.fixedDeltaTime` kalıcı değiştirilemez.**
+Unity 6 bunu `TimeManager.asset` içinde rasyonel saklar
+(`m_Count / m_Numerator`, varsayılan `2822399/141120000 = 0.02`).
+Satır sonu LF'dir ve değerden sonra virgül yoktur.
+
+**3. URP 17'de bazı ayarlar `internal set`.**
+`supportsMainLightShadows`, `supportsSoftShadows`,
+`additionalLightsRenderingMode` dışarıdan atanamaz →
+`SerializedProperty` gerekir (`ProjectSetupTool.SetPrivateField`).
+
+**4. `EditorUtility.DisplayDialog` batchmode'da kullanılamaz.**
+`CreateGameScene` bu yüzden yalnızca menüden çağrıldığında onay ister.

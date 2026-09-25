@@ -375,7 +375,7 @@ namespace KargoSim.EditorTools
         [MenuItem("Kargo/8. GameConfig Olustur", priority = 26)]
         public static void CreateGameConfig()
         {
-            var existing = AssetDatabase.LoadAssetAtPath<GameConfig>(GameConfigPath);
+            var existing = LoadGameConfig();
             if (existing != null)
             {
                 Debug.Log("[Kargo] GameConfig zaten var, dokunulmadi.");
@@ -385,7 +385,11 @@ namespace KargoSim.EditorTools
             var config = ScriptableObject.CreateInstance<GameConfig>();
             AssetDatabase.CreateAsset(config, GameConfigPath);
             AssetDatabase.SaveAssets();
-            Debug.Log("[Kargo] GameConfig olusturuldu: " + GameConfigPath);
+
+            var created = LoadGameConfig();
+            Debug.Log("[Kargo] GameConfig olusturuldu: " + GameConfigPath +
+                      (created != null ? "" : "  DIKKAT: olusturuldu ama yuklenemedi, " +
+                       "Library klasorunu silip projeyi yeniden acin."));
         }
 
         // ------------------------------------------------------------------
@@ -425,11 +429,13 @@ namespace KargoSim.EditorTools
                 return;
             }
 
-            var config = AssetDatabase.LoadAssetAtPath<GameConfig>(GameConfigPath);
+            var config = LoadGameConfig();
             if (config == null)
             {
-                CreateGameConfig();
-                config = AssetDatabase.LoadAssetAtPath<GameConfig>(GameConfigPath);
+                Debug.LogError("[Kargo] GameConfig asset'i yuklenemedi (" + GameConfigPath + "). " +
+                               "Sahne GameCompositionRoot referansi BOS olacak. " +
+                               "Cozum: 'Kargo/8. GameConfig Olustur' sonra Library klasorunu " +
+                               "silip projeyi yeniden acin.");
             }
 
             Scene scene = EditorSceneManager.NewScene(NewSceneSetup.EmptyScene, NewSceneMode.Single);
@@ -473,6 +479,11 @@ namespace KargoSim.EditorTools
             EditorSceneManager.MarkSceneDirty(scene);
             EditorSceneManager.SaveScene(scene, ScenePath);
 
+            // Kaydedilen sahneyi tekrar okuyup dogrula: SerializedObject
+            // yazimi sessizce basarisiz olabiliyor ve o zaman oyun
+            // "GameConfig atanmadı" hatasiyla acilir.
+            VerifyCompositionRootConfig();
+
             // --- Build settings ---
             EditorBuildSettings.scenes = new[]
             {
@@ -484,9 +495,51 @@ namespace KargoSim.EditorTools
 
         private static void AssignConfig(GameCompositionRoot root, GameConfig config)
         {
-            var so = new SerializedObject(root);
-            so.FindProperty("config").objectReferenceValue = config;
-            so.ApplyModifiedPropertiesWithoutUndo();
+            // SerializedObject uzerinden yazmak yerine dogrudan alan atamasi
+            // kullaniliyor: sahne henuz kaydedilmeden olusturulmus bir
+            // component'te SerializedObject yazimi sessizce kaybolabiliyor.
+            root.SetConfigForSetup(config);
+            EditorUtility.SetDirty(root);
+
+            // Oku-geri dogrulama: atama gercekten tuttu mu?
+            if (root.Config != config)
+            {
+                Debug.LogError("[Kargo] GameCompositionRoot.config atanamadi " +
+                               "(okuma-geri dogrulamasi basarisiz).");
+            }
+        }
+
+        /// <summary>
+        /// Kaydedilmis sahneyi diskten okuyup CompositionRoot referansini
+        /// dogrular. Dogrulama basarisiz olursa hata verir - boylece
+        /// "oyun neden acilmiyor" belirsizligi kalmaz.
+        /// </summary>
+        private static void VerifyCompositionRootConfig()
+        {
+            var saved = AssetDatabase.LoadAssetAtPath<SceneAsset>(ScenePath);
+            if (saved == null)
+            {
+                Debug.LogError("[Kargo] Dogrulama: sahne kaydedilmemis: " + ScenePath);
+                return;
+            }
+
+            var scene = EditorSceneManager.OpenScene(ScenePath, OpenSceneMode.Single);
+            bool ok = false;
+            foreach (var go in scene.GetRootGameObjects())
+            {
+                var root = go.GetComponent<GameCompositionRoot>();
+                if (root == null) continue;
+                ok = root.Config != null;
+                break;
+            }
+
+            if (ok)
+                Debug.Log("[Kargo] Dogrulama OK: GameCompositionRoot.config atanmis.");
+            else
+                Debug.LogError("[Kargo] Dogrulama BASARISIZ: GameCompositionRoot.config " +
+                               "kaydedilmis sahnede BOS. Oyun acilmayacak. " +
+                               "GameConfig.asset dosyasini silip '8. GameConfig Olustur' " +
+                               "ve '9. Game Sahnesini Kur' adimlarini tekrarlayin.");
         }
 
         // ------------------------------------------------------------------
@@ -565,6 +618,91 @@ namespace KargoSim.EditorTools
 
             string value = yaml.Substring(index + key.Length, lineEnd - index - key.Length).Trim();
             return long.TryParse(value, out long result) ? result : -1;
+        }
+
+        /// <summary>
+        /// GameConfig asset'i neden yuklenemedigini teşhis eder.
+        /// Unity tip cozumlemesi sessizce basarisiz oldugu icin
+        /// LoadAssetAtPath null dondugunde nedenini bilmek zorundayiz.
+        /// </summary>
+        [MenuItem("Kargo/Diagnoz: GameConfig Yukleme", priority = 40)]
+        public static void DiagnoseGameConfig()
+        {
+            Debug.Log("[DIA] Beklenen yol: " + GameConfigPath);
+            Debug.Log("[DIA] Tip: " + typeof(GameConfig).Assembly.GetName().Name +
+                      " | FullName: " + typeof(GameConfig).FullName);
+
+            bool fileOnDisk = File.Exists(GameConfigPath);
+            Debug.Log("[DIA] Diskte dosya var mi: " + fileOnDisk);
+
+            UnityEngine.Object[] all = AssetDatabase.LoadAllAssetsAtPath(GameConfigPath);
+            Debug.Log("[DIA] LoadAllAssetsAtPath sonucu: " + all.Length + " nesne");
+            foreach (UnityEngine.Object o in all)
+            {
+                Debug.Log("[DIA]   -> " + (o == null ? "NULL" : o.GetType().FullName) +
+                          "  (GameConfig mi? " + (o is GameConfig) + ")");
+            }
+
+            GameConfig typed = AssetDatabase.LoadAssetAtPath<GameConfig>(GameConfigPath);
+            Debug.Log("[DIA] LoadAssetAtPath<GameConfig>: " + (typed == null ? "NULL" : "OK"));
+
+            // Tasarida bulunan tum GameConfig turlerini listele
+            string[] guids = AssetDatabase.FindAssets("t:ScriptableObject");
+            foreach (string guid in guids)
+            {
+                string path = AssetDatabase.GUIDToAssetPath(guid);
+                if (!path.Contains("GameConfig")) continue;
+
+                var obj = AssetDatabase.LoadAssetAtPath<ScriptableObject>(path);
+                Debug.Log("[DIA] Bulunan: " + path + " -> tip: " +
+                          (obj == null ? "NULL" : obj.GetType().FullName));
+            }
+
+            // Varsa tip cozumlemesini elle zorla
+            if (all.Length > 0 && all[0] != null)
+            {
+                Debug.Log("[DIA] --- GameConfig.asset icerigi ---\n" +
+                          File.ReadAllText(GameConfigPath));
+            }
+        }
+
+        /// <summary>
+        /// GameConfig asset'ini guvenilir sekilde yukler.
+        ///
+        /// Neden ozel bir yol gerekli: Unity, ScriptableObject'i (ornegin
+        /// GameConfig.asset) icinde hangi assembly'de oldugunu
+        /// m_EditorClassIdentifier ile saklar. Bir script assembly'ye
+        /// tasindiginda (bizde: Assembly-CSharp -> KargoSim.Runtime) eski
+        /// import onbellegi bayat kalir ve LoadAssetAtPath&lt;T&gt; NULL doner,
+        /// hatta LoadAllAssetsAtPath dogru tipi gosterir. Bu bir Unity hatasi
+        /// degil, onbellek tutarsizligidir.
+        ///
+        /// Cozum: once zorla yeniden import et, sonra dene; hala olmazsa
+        /// tip cozumlemesini atlayip nesneyi dogrudan al.
+        /// </summary>
+        private static GameConfig LoadGameConfig()
+        {
+            var typed = AssetDatabase.LoadAssetAtPath<GameConfig>(GameConfigPath);
+            if (typed != null) return typed;
+
+            AssetDatabase.ImportAsset(GameConfigPath, ImportAssetOptions.ForceUpdate);
+
+            typed = AssetDatabase.LoadAssetAtPath<GameConfig>(GameConfigPath);
+            if (typed != null) return typed;
+
+            // Son care: tip cozumlemesi basarisiz ama nesnenin tipi dogru.
+            foreach (UnityEngine.Object o in AssetDatabase.LoadAllAssetsAtPath(GameConfigPath))
+            {
+                if (o is GameConfig cfg)
+                {
+                    Debug.LogWarning("[Kargo] GameConfig tip cozumlemesi bayat onbellegi " +
+                                     "uzerinden yapildi (ImportAsset ile duzeltilemedi). " +
+                                     "Kalici cozum: Library klasorunu silip projeyi yeniden acin.");
+                    return cfg;
+                }
+            }
+
+            return null;
         }
 
         /// <summary>Tum adimlari sirayla calistirir.</summary>

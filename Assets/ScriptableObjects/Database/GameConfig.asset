@@ -11,7 +11,7 @@ MonoBehaviour:
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: 3fed0e3433c8cbd4bb6fae744685a01c, type: 3}
   m_Name: GameConfig
-  m_EditorClassIdentifier: Assembly-CSharp::KargoSim.Core.GameConfig
+  m_EditorClassIdentifier: KargoSim.Runtime::KargoSim.Core.GameConfig
   dayLengthSeconds: 300
   startHour: 8
   forceReturnToDepotOnDayEnd: 1

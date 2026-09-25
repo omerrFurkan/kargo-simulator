@@ -1,0 +1,103 @@
+using System.IO;
+using KargoSim.Core;
+using NUnit.Framework;
+using UnityEditor;
+using UnityEditor.SceneManagement;
+using UnityEngine;
+using UnityEngine.SceneManagement;
+
+namespace KargoSim.Tests
+{
+    /// <summary>
+    /// Asama 1'in cikti dogrulugunu kontrol eder: sahne acilabiliyor mu,
+    /// CompositionRoot yapilandirilmis mi, temel nesneler yerinde mi.
+    ///
+    /// Editor'de elle bakmak yerine otomatik test: sahne kaydedilip
+    /// yanlislikla bozuldugunda (ornegin GameConfig referansi koptugunda)
+    /// aninda yakalar.
+    /// </summary>
+    public sealed class GameSceneIntegrityTests
+    {
+        private const string ScenePath = "Assets/Scenes/Game.unity";
+        private const string LayerGround = "Ground";
+
+        private Scene _scene;
+
+        [SetUp]
+        public void SetUp()
+        {
+            Assert.IsTrue(File.Exists(ScenePath), "Game.unity bulunamadi: " + ScenePath);
+            _scene = EditorSceneManager.OpenScene(ScenePath, OpenSceneMode.Single);
+        }
+
+        [TearDown]
+        public void TearDown()
+        {
+            if (_scene.IsValid() && !_scene.isLoaded) return;
+        }
+
+        [Test]
+        public void SahneYuklenir()
+        {
+            Assert.IsTrue(_scene.IsValid());
+            Assert.IsTrue(_scene.isLoaded);
+        }
+
+        [Test]
+        public void CompositionRootSahnedeVeYapilandirilmis()
+        {
+            var roots = _scene.GetRootGameObjects();
+            GameCompositionRoot root = null;
+            foreach (var go in roots)
+            {
+                root = go.GetComponent<GameCompositionRoot>();
+                if (root != null) break;
+            }
+
+            Assert.IsNotNull(root, "Sahnede GameCompositionRoot bulunamadi.");
+            Assert.IsNotNull(root.Config,
+                "GameCompositionRoot.gameConfig ATANMAMIS. " +
+                "Kargo/1. Tum Kurulumu Calistir menusunu calistir.");
+        }
+
+        [Test]
+        public void ZeminDogruKatmandaVeStatikIsaretli()
+        {
+            var ground = GameObject.Find("Ground");
+            Assert.IsNotNull(ground, "Sahnede 'Ground' zemini yok.");
+
+            Assert.AreEqual(LayerGround, LayerMask.LayerToName(ground.layer),
+                "Zemin 'Ground' katmaninda olmali (fizik matrisine gore).");
+
+            Assert.IsTrue(GameObjectUtility.AreStaticEditorFlagsSet(ground, StaticEditorFlags.BatchingStatic),
+                "Zemin static isaretli olmali: static batching + occlusion culling saglar.");
+        }
+
+        [Test]
+        public void YonelmisIsikVeKameraVar()
+        {
+            var lights = Object.FindObjectsByType<Light>(FindObjectsSortMode.None);
+            bool hasDirectional = false;
+            foreach (var l in lights)
+            {
+                if (l.type == LightType.Directional) { hasDirectional = true; break; }
+            }
+            Assert.IsTrue(hasDirectional,
+                "Yonelmis isik yok. Aydinlatma tek isiga bagli, bake edilebilir olmali.");
+
+            Assert.IsNotNull(Camera.main, "Main Camera yok ya da MainCamera etiketi atanmemis.");
+        }
+
+        [Test]
+        public void SahneBuildSettingsListesindeVeEtkin()
+        {
+            var scenes = EditorBuildSettings.scenes;
+            bool found = false;
+            foreach (var s in scenes)
+            {
+                if (s.path == ScenePath && s.enabled) { found = true; break; }
+            }
+            Assert.IsTrue(found, "Game.unity Build Settings listesinde etkin degil.");
+        }
+    }
+}
