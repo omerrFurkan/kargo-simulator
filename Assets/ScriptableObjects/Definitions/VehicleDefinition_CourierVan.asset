@@ -1,0 +1,30 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: dc995003624e7c34aa432e9afedc51d5, type: 3}
+  m_Name: VehicleDefinition_CourierVan
+  m_EditorClassIdentifier: KargoSim.Runtime::KargoSim.Vehicle.VehicleDefinition
+  mass: 1200
+  centerOfMassHeight: 0.45
+  maxSpeed: 30
+  maxReverseSpeed: 12
+  engineForce: 2200
+  handbrakeStrength: 3
+  brakeForce: 3500
+  maxSteerAngle: 32
+  steerFalloff: 1.1
+  lateralGrip: 12
+  downforce: 60
+  autoUprightSpeed: 120
+  suspensionDistance: 0.3
+  suspensionSpring: 35000
+  suspensionDamper: 4500
+  wheelRadius: 0.35

@@ -47,6 +47,7 @@ desktop.ini
 /import.log
 /setup.log
 /test.log
-/diag.log
-/testresults.xml
+/vehicle.log
+/diag*.log
+/*.xml
 *.log

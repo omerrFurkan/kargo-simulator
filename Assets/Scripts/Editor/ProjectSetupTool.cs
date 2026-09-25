@@ -277,9 +277,12 @@ namespace KargoSim.EditorTools
             // Arcade his: gercek yercekimi -9.81 cok "yavas" kureler hissettirir.
             Physics.gravity = new Vector3(0f, -25f, 0f);
 
-            // Transform'lar her karede otomatik senkronlanmasin. Rigidbody ile
-            // hareket ettirdigimiz her sey bu sayede fizik icin bedava olur.
-            Physics.autoSyncTransforms = false;
+            // NOT: Unity 6'da Physics.autoSyncTransforms bayatlastirildi ve
+            // SILENTCE KAPALI. Artik Transform degisikliklerini fizik motoruna
+            // elle tasimak gerekir: Physics.SyncTransforms().
+            // Bu projede nesneler Rigidbody ile hareket ettigi icin (ve
+            // Respawn'da dogrudan rb.position yazildigi icin) normalde gerek
+            // olmuyor. Yeni bir sey eklerken takilirsan buraya bak.
 
             // Carpisma geri bildirimi havuzunu yeniden kullanim icin etkinlestir.
             Physics.reuseCollisionCallbacks = true;
@@ -288,7 +291,8 @@ namespace KargoSim.EditorTools
             Physics.defaultSolverIterations = 8;
             Physics.defaultSolverVelocityIterations = 3;
 
-            Debug.Log("[Kargo] Fizik: gravity -25, autoSyncTransforms KAPALI.");
+            Debug.Log("[Kargo] Fizik: gravity -25. " +
+                      "autoSyncTransforms Unity 6'da zaten kapalı ve API bayat.");
         }
 
         // ------------------------------------------------------------------
@@ -441,10 +445,17 @@ namespace KargoSim.EditorTools
             Scene scene = EditorSceneManager.NewScene(NewSceneSetup.EmptyScene, NewSceneMode.Single);
 
             // --- Zemin ---
-            GameObject ground = GameObject.CreatePrimitive(PrimitiveType.Plane);
+            // DIKKAT: burada ASLA PrimitiveType.Plane kullanma.
+            // Plane tek parca bir quad'dir ve MeshCollider'i WheelCollider
+            // ile guvenilir sekilde carpismaz: arac zemine degip hemen
+            // icinden gecer (PlayMode testinde olculdu: y = -26 m).
+            // Kutu (BoxCollider) hem saglam hem de mesh'ten hizli.
+            GameObject ground = GameObject.CreatePrimitive(PrimitiveType.Cube);
             ground.name = "Ground";
             ground.layer = LayerGround;
-            ground.transform.localScale = new Vector3(20f, 1f, 20f); // 200x200 birim
+            // 200x200 birim zemin: ust yuzu tam y = 0
+            ground.transform.localScale = new Vector3(200f, 1f, 200f);
+            ground.transform.position = new Vector3(0f, -0.5f, 0f);
             GameObjectUtility.SetStaticEditorFlags(ground,
                 StaticEditorFlags.BatchingStatic |
                 StaticEditorFlags.OccluderStatic |

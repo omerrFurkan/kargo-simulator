@@ -56,16 +56,22 @@ neden açılmıyor" belirsizliği kalmaz.
 
 ### Testler
 
-EditMode testleri `GameClock` mantığını ve sahne bütünlüğünü doğrular (14 test).
+EditMode testleri formülleri ve sahne bütünlüğünü, PlayMode testleri
+gerçek fizik motorunda sürüşü doğrular (**36 + 7 test**).
 
 ```powershell
+# EditMode (36 test)
 & "C:\Program Files\Unity\Hub\Editor\6000.3.25f1\Editor\Unity.exe" `
-  -runTests -batchmode -nographics `
-  -projectPath "D:\KargoSimulator" `
-  -testPlatform EditMode -testResults "D:\KargoSimulator\testresults.xml"
+  -runTests -batchmode -nographics -projectPath "D:\KargoSimulator" `
+  -testPlatform EditMode -testResults "D:\KargoSimulator\editmode.xml"
+
+# PlayMode (7 test)
+& "C:\Program Files\Unity\Hub\Editor\6000.3.25f1\Editor\Unity.exe" `
+  -runTests -batchmode -nographics -projectPath "D:\KargoSimulator" `
+  -testPlatform PlayMode -testResults "D:\KargoSimulator\playmode.xml"
 ```
 
-Unity içinden: **Window → General → Test Runner → EditMode → Run All**
+Unity içinden: **Window → General → Test Runner**
 
 Komut satırından da çalıştırılabilir:
 
@@ -161,7 +167,33 @@ Assets/
 
 ## Kontroller
 
-Henüz yok. Aşama 2'de (araç) eklenir.
+| Tuş | İşlev |
+|---|---|
+| **W / ↑** | Gaz (ileri) |
+| **S / ↓** | Fren / geri vites |
+| **A / ← · D / →** | Direksiyon |
+| **Space** | El freni (yalnızca arka tekerlere) |
+| **R** | Aracı başlangıç noktasına iade et |
+
+---
+
+## Aşama 2 — Araç
+
+| Script | Görevi |
+|---|---|
+| `Vehicle/VehicleDefinition` | Araç özellikleri (SO): hız, tork, fren, direksiyon, tutunma, süspansiyon |
+| `Vehicle/IVehicleInput` | Sürücü sözleşmesi: `Throttle`, `Steer`, `Handbrake`, `RespawnRequested` |
+| `Vehicle/ArcadeVehicleController` | Fizik: motor, fren, direksiyon, yanal tutunma, downforce, takla koruması |
+| `Player/PlayerController` | Klavye → girdi |
+| `Player/CameraFollow` | Takip kamerası, hıza göre FOV |
+| `Editor/VehiclePrefabBuilder` | Prefab'ı primitive'lerden üretir, sahneye koyar, doğrular |
+
+**Tasarım kararı:** Fizik matematiği `static` saf fonksiyonlarda
+(`ComputeSteerAngle`, `ComputeMotorTorque`, `ComputeBrakeTorque`).
+EditMode testleri formülleri sahne açmadan doğrular; PlayMode testleri
+gerçek fizik motorunda sürüşü doğrular.
+
+Menü: `Kargo/Vehicle/Arac Prefabini Kur` → prefab + sahnede arac + kamera.
 
 ---
 
@@ -170,7 +202,8 @@ Henüz yok. Aşama 2'de (araç) eklenir.
 | # | Aşama | Durum |
 |---|---|---|
 | 1 | Proje + ayarlar + çekirdek | ✅ |
-| 2 | Player + araç kontrolü | ⬜ |
+| 2 | Player + araç kontrolü | ✅ |
+| 3 | Kargo sistemi | ⬜ |
 | 3 | Kargo sistemi | ⬜ |
 | 4 | Teslimat sistemi | ⬜ |
 | 5 | Para + XP sistemi | ⬜ |
@@ -210,15 +243,68 @@ Belirti: sahnede referans GUID'i doğru ama runtime'da boş.
 Çözüm: `Library` klasörünü silip projeyi yeniden aç.
 `ProjectSetupTool.LoadGameConfig()` önce `ImportAsset(ForceUpdate)` dener.
 
-**2. `Time.fixedDeltaTime` kalıcı değiştirilemez.**
+**2. `Plane` (MeshCollider) araç taşıyamaz.**
+`PrimitiveType.Plane` tek parça bir quad'dır ve `WheelCollider` ile
+güvenilir çarpışmaz. PlayMode testinde ölçüldü: araç zemine değip
+hemen içinden geçiyordu (y = -26 m). `Cube` (BoxCollider) ile aynı
+sahne kusursuz çalışıyor (y = 0.15). Bu yüzden zemin `Cube` ile üretilir.
+
+**3. Aracın gövdesinde collider olmazsa ilk gazda takla atar.**
+Sadece 4 `WheelCollider`'dan oluşan bir araç, fizik motoru için
+kararsızdır: dururken sorunsuz durur, ama ilk motor torkunda takla atar.
+Ölçülen sonuçlar (1200 kg, 2000 N):
+
+| Gövde collider | İtki | Sonuç |
+|---|---|---|
+| yok | `AddForce` | azami eğilme 164°, y = -76 m |
+| yok | `motorTorque` | azami eğilme 173°, y = -94 m |
+| var | `AddForce` | kararlı ama **hareket etmiyor** (0.00 m) |
+| var | `motorTorque` | **kararlı, 2.4 sn'de 16.7 m** ✓ |
+
+Gövde collider'ı kök nesnedeki `BoxCollider`'dır
+(`[RequireComponent]` ile otomatik gelir). Görsel mesh'ler (`Body`, `Cabin`,
+`Bumper_*`) collider taşımaz. **Buraya ikinci bir `Chassis` çocuğu
+eklemek iki collider yaratır ve aracı yerinde sıkıştırır.**
+
+**4. Duruşta fren uygulanırsa motor kazanamaz.**
+Yerleştirme kaynaklı 0.02 m/s'lik geriye kaymada "gaz basılı ama hız
+ters yönde" kuralı devreye girip tekeri 3500 Nm ile kilitliyordu.
+`ComputeBrakeTorque` artık `|hız| < 0.1` iken fren uygulamaz.
+
+**5. Direksiyon eğrisi `1/(1+hız·k)` ise yüksek hızda araç dönmez.**
+Bu eğri 10 m/s'te açıyı %9'a (2.9°) düşürüyordu. Yerine doğrusal
+enterpolasyon: dururken tam açı, azami hızda `minSteerFactor` (varsayılan
+%35). 10 m/s'te 25°, 30 m/s'te 11°.
+
+**6. Test zemini yeterince büyük olmalı.**
+Azami hız testi 12 saniye tam gaz gidiyor; araç yüzlerce metre yol
+alıyor. 400×400 bir zemin yeterli değil — araç kenardan "düşüp"
+boşluğa kaçıyor ve hız testi sahte şekilde başarısız oluyor.
+Test zemini 10000×10000.
+
+**7. `Time.fixedDeltaTime` kalıcı değiştirilemez.**
 Unity 6 bunu `TimeManager.asset` içinde rasyonel saklar
 (`m_Count / m_Numerator`, varsayılan `2822399/141120000 = 0.02`).
 Satır sonu LF'dir ve değerden sonra virgül yoktur.
 
-**3. URP 17'de bazı ayarlar `internal set`.**
+**8. URP 17'de bazı ayarlar `internal set`.**
 `supportsMainLightShadows`, `supportsSoftShadows`,
 `additionalLightsRenderingMode` dışarıdan atanamaz →
 `SerializedProperty` gerekir (`ProjectSetupTool.SetPrivateField`).
 
-**4. `EditorUtility.DisplayDialog` batchmode'da kullanılamaz.**
-`CreateGameScene` bu yüzden yalnızca menüden çağrıldığında onay ister.
+**9. `Physics.autoSyncTransforms` Unity 6'da deprecated.**
+Her zaman kapalı; transform değişikliklerini elle taşımak gerekirse
+`Physics.SyncTransforms()` çağrılmalı.
+
+**10. `EditorUtility.DisplayDialog` batchmode'da kullanılamaz.**
+Sahne yeniden oluşturma yalnızca menüden çağrıldığında onay ister.
+
+**11. MonoBehaviour `new` ile oluşturulamaz.**
+`new FakeDriver()` Unity'de "sahte null" döner (`== null` **true**).
+`AddComponent<T>()` kullanılmalı.
+
+**12. PlayMode'da `AddComponent` anında `Awake` çağırır.**
+Girdi henüz atanmamışsa `Awake` hata loglar ve test `SetUp`'ta düşer.
+Nesneyi **pasif** kurup (`SetActive(false)`), bağlantıları yapıp sonra
+aktifleştirmek gerekir — bu, prefab akışının da gerçekte nasıl
+çalıştığını yansıtır.
