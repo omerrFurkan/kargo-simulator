@@ -23,6 +23,10 @@ namespace KargoSim.EditorTools
         [MenuItem("Kargo/4. Harita ve Teslimat Noktalarini Kur", priority = 3)]
         public static void BuildLayout()
         {
+            // Sahne BAŞTA acilir. Asamada uretilen isaretler sahneye
+            // yazilir; arada sahne yeniden acilirsa hepsi kaybolur.
+            Scene scene = EditorSceneManager.OpenScene(ScenePath, OpenSceneMode.Single);
+
             var layout = AssetDatabase.LoadAssetAtPath<MapLayout>(LayoutPath);
             if (layout == null)
             {
@@ -38,13 +42,100 @@ namespace KargoSim.EditorTools
 
             AssetDatabase.SaveAssets();
 
+            BuildMarkers(layout);
             WireToCompositionRoot(layout);
+
+            // Isaretler ve Composition Root degisiklikleri sahneye yazilir.
+            EditorSceneManager.MarkSceneDirty(scene);
+            EditorSceneManager.SaveScene(scene);
 
             AssetDatabase.SaveAssets();
             AssetDatabase.Refresh();
 
             Verify(layout);
             Debug.Log("[Kargo] Harita kuruldu: " + layout.deliveryPoints.Count + " teslimat noktasi.");
+        }
+
+        /// <summary>
+        /// Her teslimat noktasi icin yerde renkli bir isaret olusturur.
+        /// Aşama 8'de ayni yere bina kurulunca bu isaretler kapanabilir.
+        /// </summary>
+        private static void BuildMarkers(MapLayout layout)
+        {
+            Transform root = null;
+            for (int i = 0; i < layout.deliveryPoints.Count; i++)
+            {
+                DeliveryPointData point = layout.deliveryPoints[i];
+
+                if (root == null)
+                {
+                    var rootGo = new GameObject("DeliveryStops");
+                    rootGo.transform.position = Vector3.zero;
+                    root = rootGo.transform;
+                }
+
+                // Eski isareti temizle (yeniden calistirilabilir olsun)
+                var existing = root.Find("Stop_" + point.id);
+                if (existing != null) Object.DestroyImmediate(existing.gameObject);
+
+                var go = new GameObject("Stop_" + point.id);
+                go.transform.SetParent(root, false);
+                go.transform.position = point.position + new Vector3(0f, 0.06f, 0f);
+
+                // Yerde yatan renkli kare
+                GameObject pad = GameObject.CreatePrimitive(PrimitiveType.Cube);
+                pad.name = "Pad";
+                Object.DestroyImmediate(pad.GetComponent<Collider>());
+                pad.transform.SetParent(go.transform, false);
+                pad.transform.localScale = new Vector3(6f, 0.1f, 6f);
+                pad.transform.localPosition = Vector3.zero;
+
+                var renderer = pad.GetComponent<Renderer>();
+                renderer.sharedMaterial = GetMarkerMaterial();
+
+                // Ad etiketi: yere yatay, kameraya bakinca okunur
+                var labelGo = new GameObject("Label");
+                labelGo.transform.SetParent(go.transform, false);
+                labelGo.transform.localPosition = new Vector3(0f, 0.12f, 0f);
+                // Yerden okunabilirlik icin yatay duruyor (billboard yok:
+                // her marker'a Update yazmak "tek Update" kuralini bozardi)
+                labelGo.transform.localRotation = Quaternion.Euler(90f, 0f, 0f);
+                labelGo.transform.localScale = new Vector3(0.1f, 0.1f, 0.1f);
+
+                var marker = go.AddComponent<StopMarker>();
+                var so = new SerializedObject(marker);
+                so.FindProperty("padRenderer").objectReferenceValue = renderer;
+                so.FindProperty("billboard").objectReferenceValue = labelGo.transform;
+                so.ApplyModifiedPropertiesWithoutUndo();
+
+                marker.Configure(point.id, point.displayName);
+                EditorUtility.SetDirty(marker);
+            }
+        }
+
+        private static Material GetMarkerMaterial()
+        {
+            const string path = "Assets/Art/Materials/DeliveryMarker.mat";
+            var existing = AssetDatabase.LoadAssetAtPath<Material>(path);
+            if (existing != null) return existing;
+
+            Shader shader = Shader.Find("Universal Render Pipeline/Lit");
+            if (shader == null)
+            {
+                Debug.LogError("[Kargo] URP/Lit shader bulunamadi.");
+                return null;
+            }
+
+            var material = new Material(shader);
+            material.color = Color.white;
+            material.SetColor("_BaseColor", Color.white);
+
+            // Emissive: isaretler gece/golge okunur kalsin
+            material.EnableKeyword("_EMISSIVE_COLOR");
+            material.SetColor("_EmissionColor", new Color(0.25f, 0.25f, 0.25f));
+
+            AssetDatabase.CreateAsset(material, path);
+            return material;
         }
 
         /// <summary>
@@ -91,7 +182,10 @@ namespace KargoSim.EditorTools
 
         private static void WireToCompositionRoot(MapLayout layout)
         {
-            Scene scene = EditorSceneManager.OpenScene(ScenePath, OpenSceneMode.Single);
+            // DIKKAT: Sahneyi BURADA yeniden ACMA. BuildLayout basinda
+            // acik olan sahne, bu asamada kaydedilmemis isaret degisiklikleri
+            // tasiyor; OpenScene(Single) ile tekrar acmak onlari yok eder.
+            // (Once bir teslim araci bu yuzden kayboldu.)
             var root = Object.FindFirstObjectByType<Core.GameCompositionRoot>();
 
             if (root == null)
@@ -103,8 +197,6 @@ namespace KargoSim.EditorTools
 
             root.SetMapForSetup(layout, 7f);
             EditorUtility.SetDirty(root);
-            EditorSceneManager.MarkSceneDirty(scene);
-            EditorSceneManager.SaveScene(scene);
 
             Debug.Log("[Kargo] Composition Root'a MapLayout baglandi.");
         }

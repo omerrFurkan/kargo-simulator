@@ -144,6 +144,45 @@ namespace KargoSim.Tests
         }
 
         [Test]
+        public void ArayuzSahnedeVeBagli()
+        {
+            // UI yoksa oyun "calisir" ama oyuncu ne yapacagini bilmez:
+            // hangi kargoyu nereye goturecegini goremez. Bu yuzden
+            // varligi ayri bir kosul olarak dogrulanir.
+            var ui = UnityEngine.Object.FindFirstObjectByType<UI.UIManager>();
+            Assert.IsNotNull(ui, "Sahnede UIManager yok. Menu: Kargo/6. Arayuzu Kur");
+
+            var so = new SerializedObject(ui);
+            SerializedProperty hud = so.FindProperty("hud");
+            SerializedProperty depot = so.FindProperty("depotView");
+            SerializedProperty minimap = so.FindProperty("minimap");
+
+            Assert.IsNotNull(hud.objectReferenceValue, "HUD görünümü bağlı değil.");
+            Assert.IsNotNull(depot.objectReferenceValue, "Depo paneli bağlı değil.");
+            Assert.IsNotNull(minimap.objectReferenceValue, "Minimap bağlı değil.");
+
+            // Canvas olmadan UI calisir mi?
+            Canvas canvas = ui.GetComponent<Canvas>();
+            Assert.IsNotNull(canvas, "UIManager'ın üzerinde Canvas olmalı.");
+        }
+
+        [Test]
+        public void DurakIsaretleriSahnede()
+        {
+            // Noktalar haritada görünmezse oyuncu hedefi arayamaz.
+            int markers = 0;
+            var all = _scene.GetRootGameObjects();
+            for (int i = 0; i < all.Length; i++)
+            {
+                markers += all[i].GetComponentsInChildren<Delivery.StopMarker>(true).Length;
+            }
+
+            Assert.Greater(markers, 0,
+                "Sahnede durak işareti yok - hedefler dünyada görünmüyor. " +
+                "Menu: Kargo/4. Harita ve Teslimat Noktalarini Kur");
+        }
+
+        [Test]
         public void HaritaNoktaSayisiOyunAyariylaUyumlu()
         {
             // destinationCount ile MapLayout nokta sayisi eslesmezse

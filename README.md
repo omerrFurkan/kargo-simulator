@@ -2,7 +2,7 @@
 
 Unity 6 ile geliştirilen, kargo/kurye simülasyon oyunu.
 
-**Durum:** Aşama 1-3 tamamlandı (proje + araç + kargo). Henüz oynanabilir değil — teslimat, para ve UI yok.
+**Durum:** Aşama 1-6 tamamlandı. **Oyun oynanabilir** — depo → kargo yükle → adrese git → teslim et → para kazan. Kalan: görevler, kayıt, harita içeriği.
 
 ---
 
@@ -57,7 +57,7 @@ neden açılmıyor" belirsizliği kalmaz.
 ### Testler
 
 EditMode testleri formülleri ve sahne bütünlüğünü, PlayMode testleri
-gerçek fizik motorunda sürüşü doğrular (**124 + 7 test**).
+gerçek fizik motorunda sürüşü doğrular (**137 + 7 test**).
 
 ```powershell
 # EditMode (36 test)
@@ -141,12 +141,12 @@ Assets/
 │   ├── Player/           PlayerController, CameraFollow, PlayerProgress
 │   ├── Vehicle/          VehicleDefinition, IVehicleInput, ArcadeVehicleController
 │   ├── Cargo/            Parcel, ParcelType, ParcelGenerator, CargoManifest, CargoSystem
-│   ├── Delivery/         MapLayout, DeliveryStop, RoutePlanner, DeliverySystem
+│   ├── Delivery/         MapLayout, DeliveryStop, RoutePlanner, DeliverySystem, StopMarker
 │   ├── Economy/          EconomyConfig, PayoutCalculator, Payout, EconomyService
 │   ├── Mission/          (Aşama 6)
-│   ├── UI/               (Aşama 6)
+│   ├── UI/               UIManager, HUD, Depot, Stop, DaySummary, Minimap
 │   ├── Save/             (Aşama 7)
-│   └── Editor/           5 kurulum aracı (Project / Vehicle / Content / Delivery / Progression)
+│   └── Editor/           6 kurulum aracı (Project / Vehicle / Content / Delivery / Progression / UI)
 ├── ScriptableObjects/
 │   ├── Definitions/      VehicleDefinition, Parcels/ (6 ParcelType)
 │   └── Database/GameConfig.asset, MapLayout.asset, EconomyConfig.asset
@@ -175,6 +175,13 @@ Assets/
 | **A / ← · D / →** | Direksiyon |
 | **Space** | El freni (yalnızca arka tekerlere) |
 | **R** | Aracı başlangıç noktasına iade et |
+| **Tab** | Depo listesini aç / kapat |
+| **E** | Depoda seçili kargoyu yükle · adreste teslim et |
+| **1 – 9** | Depoda kargo seç |
+| **Q** | Aracı boşalt |
+| **Esc** | Panelleri kapat |
+
+Detaylı oynanış: bakınız *Aşama 6 — Arayüz*.
 
 ---
 
@@ -367,16 +374,79 @@ kapsamında değil.
 
 ---
 
+---
+
+## Aşama 6 — Arayüz
+
+| Script | Görevi |
+|---|---|
+| `UI/UITheme` | Tüm renkler ve ölçüler — tek kaynak |
+| `UI/UIManager` | Tek giriş noktası: olay bağları, girdi, minimap |
+| `UI/HudView` | Para, seviye/XP, saat, kapasite, sonraki durak |
+| `UI/DepotView` + `ParcelRowView` | Depo listesi, yükleme, satır havuzu |
+| `UI/StopView` | Adrese varınca açılan teslimat paneli |
+| `UI/DaySummaryView` | Gün sonu özeti |
+| `UI/MinimapView` | Depo, duraklar, rota çizgisi, araç |
+| `Delivery/StopMarker` | Dünyada renkli zemin işareti + etiket |
+| `Editor/UiSetupTool` | Tüm arayüzü sıfırdan kurar |
+
+Menü: `Kargo/6. Arayuzu Kur`
+
+### Oynanış akışı
+
+```
+Depoya git (mavi alan)  →  Tab            → kargo listesini aç
+                            tıkla / 1-9  → kargo seç
+                            E             → yükle    (Q: hepsini boşalt)
+                            Tab           → kapat
+
+Renkli kareye git        →  panel otomatik açılır
+                            E             → teslim et (her basışta bir kargo)
+```
+
+Minimap (sağ üst) ve dünyadaki renkli işaretler hedefi gösterir.
+
+### Performans: iki kural
+
+**1. Tek `Update` kuralı bozulmadı.** `UIManager.Update()` yok —
+`CompositionRoot` her karede `uiManager.Tick(dt)` çağırır. `StopMarker`'ın
+da `Update`'i yok: 14 marker için 14 geri çağrı gereksiz maliyettir.
+Etiket yere yatay durur, kamera zaten üstten baktığı için okunur ve kare
+maliyeti sıfırdır.
+
+**2. Metinler dirty-check ile yazılır.** `HudView.Refresh` her karede
+çağrılır ama metni yalnızca **değer değiştiğinde** günceller. Aksi halde
+saniyede 60 string ayrıştırma olurdu.
+
+Satırlar **havuzlanır** — depo her açılışta GameObject üretmez.
+
+### Bulunan hata (editör aracı)
+
+`DeliverySetupTool`, 14 işareti oluşturduktan **sonra** sahneyi
+`OpenScene(Single)` ile yeniden açıyordu; kaydedilmemiş işaretler yok
+oluyordu. Sahne artık **başta** açılıyor, işaretler sonda yazılıyor.
+
+> **Kural:** Editör aracı sahneye nesne ekliyorsa sahneyi **tam başta bir
+> kez** açmalı. Ortada yeniden açmak kaydedilmemiş her şeyi siler.
+
+### Bu aşamada olmayanlar
+
+Yakıt, görevler (Mission) ve kayıt (Save) hâlâ yok. Yakıt Aşama 2'de
+bilinçli olarak ertelenmişti: depoya yakıt alma mekaniği kargo sistemiyle
+birlikte çalışması daha doğru olur.
+
+---
+
 ## Geliştirme aşamaları
 
 | # | Aşama | Durum |
 |---|---|---|
 | 1 | Proje + ayarlar + çekirdek | ✅ |
 | 2 | Player + araç kontrolü | ✅ |
-| 3 | Kargo sistemi | ⬜ |
+| 3 | Kargo sistemi | ✅ |
 | 4 | Teslimat sistemi | ✅ |
 | 5 | Para + XP sistemi | ✅ |
-| 6 | UI | ⬜ |
+| 6 | UI | ✅ |
 | 7 | Save/Load | ⬜ |
 | 8 | Harita ve içerik | ⬜ |
 | 9 | Optimizasyon | ⬜ |

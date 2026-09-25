@@ -42,6 +42,10 @@ namespace KargoSim.Core
         [Tooltip("Para ve XP ayarlari. Bos birakilirsa odeme yapilmaz.")]
         [SerializeField] private Economy.EconomyConfig economyConfig;
 
+        [Header("Arayuz")]
+        [Tooltip("Arayuz yoneticisi. Bos birakilirsa oyun HUD'suz oynanir.")]
+        [SerializeField] private UI.UIManager uiManager;
+
         private GameClock _clock;
         private CargoSystem _cargo;
         private Delivery.DeliverySystem _delivery;
@@ -155,6 +159,27 @@ namespace KargoSim.Core
             }
 
             _economy = new Economy.EconomyService(economyConfig, _progress, _delivery, 1);
+
+            BindUI();
+        }
+
+        /// <summary>
+        /// Arayuzu sistemlere baglar. UI yoksa oyun YINE calisir - sadece
+        /// HUD olmaz. Bu, arayuzu olmayan bir build'i (sunucu, test)
+        /// calistirabilmek icin onemli.
+        /// </summary>
+        private void BindUI()
+        {
+            if (uiManager == null) return;
+
+            if (_progress == null || _clock == null)
+            {
+                Debug.LogWarning("[GameCompositionRoot] Arayuz baglanamadi: " +
+                                 "ekonomi veya saat eksik. Oyun HUD'suz calisacak.", this);
+                return;
+            }
+
+            uiManager.Bind(_cargo, _delivery, _progress, _clock, mapLayout, _playerVehicleTransform);
         }
 
         // ------------------------------------------------------------------
@@ -201,6 +226,11 @@ namespace KargoSim.Core
         {
             economyConfig = economy;
         }
+
+        public void SetUiForSetup(UI.UIManager ui)
+        {
+            uiManager = ui;
+        }
 #endif
 
         private void Start()
@@ -230,6 +260,9 @@ namespace KargoSim.Core
                 if (_economy != null)
                     _economy.ElapsedProvider = _delivery.Elapsed;
             }
+
+            // Arayuz de oyunun TEK Update cagrisindan surulur.
+            if (uiManager != null) uiManager.Tick(dt);
         }
     }
 }
