@@ -135,6 +135,12 @@ namespace KargoSim.Tests
             Assert.IsNotNull(layout.objectReferenceValue,
                 "Composition Root'a MapLayout baglanmadi - hicbir adrese gidilemez. " +
                 "Menu: Kargo/4. Harita ve Teslimat Noktalarini Kur");
+
+            SerializedProperty economy = so.FindProperty("economyConfig");
+            Assert.IsNotNull(economy, "economyConfig alani bulunamadi.");
+            Assert.IsNotNull(economy.objectReferenceValue,
+                "Composition Root'a EconomyConfig baglanmadi - odeme yapilmayacak, " +
+                "oyuncu para kazanamaz. Menu: Kargo/5. Ilerleme Ayarlarini Kur");
         }
 
         [Test]

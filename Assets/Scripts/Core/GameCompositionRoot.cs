@@ -38,15 +38,23 @@ namespace KargoSim.Core
         [Tooltip("Arac bu yaricap icindeyse adrese varmiş sayilir (metre).")]
         [SerializeField] private float arrivalRadius = 7f;
 
+        [Header("Ekonomi")]
+        [Tooltip("Para ve XP ayarlari. Bos birakilirsa odeme yapilmaz.")]
+        [SerializeField] private Economy.EconomyConfig economyConfig;
+
         private GameClock _clock;
         private CargoSystem _cargo;
         private Delivery.DeliverySystem _delivery;
+        private Economy.EconomyService _economy;
+        private Player.PlayerProgress _progress;
         private Transform _playerVehicleTransform;
 
         public GameConfig Config => config;
         public GameClock Clock => _clock;
         public CargoSystem Cargo => _cargo;
         public Delivery.DeliverySystem Delivery => _delivery;
+        public Player.PlayerProgress Progress => _progress;
+        public Economy.EconomyService Economy => _economy;
         public Vehicle.VehicleDefinition PlayerVehicle => playerVehicle;
         public Delivery.MapLayout MapLayout => mapLayout;
 
@@ -67,6 +75,14 @@ namespace KargoSim.Core
 
             CreateCargoSystem();
             CreateDeliverySystem();
+            CreateEconomy();
+
+            // Gun dongusunu DIŞARIDAN dinlemek: saat degisimi once
+            // tetiklenir, biz de ondan sonra kargo/teslim tazeliyoruz.
+            // (Saat once bildirirse, gun 2 kargolari gun 1 kargosu
+            //  temizlenmeden uretilirdi.)
+            GameEvents.DayStarted += OnDayStarted;
+            GameEvents.DayEnded += OnDayEnded;
         }
 
         /// <summary>
@@ -120,6 +136,47 @@ namespace KargoSim.Core
             _delivery.BeginDay();
         }
 
+        private void CreateEconomy()
+        {
+            if (economyConfig == null)
+            {
+                Debug.LogWarning(
+                    "[GameCompositionRoot] EconomyConfig atanmadi; odeme yapilmayacak. " +
+                    "Menu: Kargo/5. Ilerleme Ayarlarini Kur", this);
+                return;
+            }
+
+            _progress = new Player.PlayerProgress(economyConfig);
+
+            if (_delivery == null)
+            {
+                Debug.LogWarning("[GameCompositionRoot] Teslimat sistemi yok, ekonomi kurulamadi.", this);
+                return;
+            }
+
+            _economy = new Economy.EconomyService(economyConfig, _progress, _delivery, 1);
+        }
+
+        // ------------------------------------------------------------------
+        // Gun dongusu
+        // ------------------------------------------------------------------
+
+        private void OnDayStarted(int day)
+        {
+            // Her gunun kargolarini yeniden uret. (Once yalnizca Start'ta
+            // bir kez uretiliyordu, 2. gun depoda kargo kalmiyordu.)
+            _cargo?.BeginDay(day);
+            _delivery?.BeginDay();
+        }
+
+        private void OnDayEnded(int day)
+        {
+            // Once teslim edilmeyenleri basarisiz say (odemesi
+            // ParcelDelivered uzerinden ekonomiye gider), sonra ozeti uret.
+            _delivery?.FailRemainingParcels();
+            _economy?.EndDay(day);
+        }
+
 #if UNITY_EDITOR
         /// <summary>
         /// Yalnizca editor kurulum araclari icin. Inspector'dan elle atama
@@ -139,16 +196,19 @@ namespace KargoSim.Core
             mapLayout = layout;
             arrivalRadius = radius;
         }
+
+        public void SetEconomyForSetup(Economy.EconomyConfig economy)
+        {
+            economyConfig = economy;
+        }
 #endif
 
         private void Start()
         {
-            // Gun 1'i baslat: onceki gun sayaci sifirdan degil, 1'den baslamali.
+            // Gun 1'i baslat. GameEvents dinlenmeye ONCEDEN baslandi, bu
+            // yuzden OnDayStarted tetiklenir ve kargolar uretilir.
             GameEvents.RaiseDayStarted(_clock.Day);
             GameEvents.RaiseDayProgressChanged(_clock.DayProgress, _clock.HourOfDay);
-
-            // Gun 1'in kargolari.
-            _cargo?.BeginDay(_clock.Day);
         }
 
         private void Update()
@@ -158,13 +218,17 @@ namespace KargoSim.Core
 
             _clock.Tick(dt);
 
-            // Teslimat sistemi aracin konumunu okur; araci tanimaz.
             if (_delivery != null)
             {
                 if (_playerVehicleTransform != null)
                     _delivery.VehiclePosition = _playerVehicleTransform.position;
 
                 _delivery.Tick(dt, _clock.IsPaused);
+
+                // Ekonomi zamani teslimat sisteminden alir: tek saat, tek
+                // kaynak. Iki ayri sayaç zamanla sapar.
+                if (_economy != null)
+                    _economy.ElapsedProvider = _delivery.Elapsed;
             }
         }
     }

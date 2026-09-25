@@ -80,6 +80,26 @@ namespace KargoSim.Core
 
         public static void RaiseRouteChanged() => RouteChanged?.Invoke();
 
+        // ---- Ekonomi / ilerleme (Aşama 5) ----
+
+        /// <summary>Bir teslimin odemesi uygulandi.</summary>
+        public static event Action<Economy.Payout, Delivery.DeliveryOutcome> PayoutApplied;
+
+        /// <summary>Yeni seviye.</summary>
+        public static event Action<int> LevelUp;
+
+        /// <summary>Gun sonu ozeti hazir.</summary>
+        public static event Action<Player.DaySummary> DaySummaryReady;
+
+        public static void RaisePayoutApplied(Economy.Payout payout,
+                                              Delivery.DeliveryOutcome outcome) =>
+            PayoutApplied?.Invoke(payout, outcome);
+
+        public static void RaiseLevelUp(int level) => LevelUp?.Invoke(level);
+
+        public static void RaiseDaySummaryReady(Player.DaySummary summary) =>
+            DaySummaryReady?.Invoke(summary);
+
         /// <summary>
         /// Editor ayarlarinda "Domain Reload: Disabled" kullanildigi icin statik
         /// event'ler Play'den cikarken temizlenmez. Play'e girildiginde hepsini
@@ -98,6 +118,9 @@ namespace KargoSim.Core
             DeliveryStopArrived = null;
             ParcelDelivered = null;
             RouteChanged = null;
+            PayoutApplied = null;
+            LevelUp = null;
+            DaySummaryReady = null;
         }
     }
 }

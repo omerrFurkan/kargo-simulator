@@ -57,7 +57,7 @@ neden açılmıyor" belirsizliği kalmaz.
 ### Testler
 
 EditMode testleri formülleri ve sahne bütünlüğünü, PlayMode testleri
-gerçek fizik motorunda sürüşü doğrular (**94 + 7 test**).
+gerçek fizik motorunda sürüşü doğrular (**124 + 7 test**).
 
 ```powershell
 # EditMode (36 test)
@@ -138,18 +138,18 @@ Assets/
 ├── Scenes/Game.unity     TEK sahne
 ├── Scripts/
 │   ├── Core/             GameConfig, GameEvents, GameClock, GameCompositionRoot
-│   ├── Player/           PlayerController, CameraFollow
+│   ├── Player/           PlayerController, CameraFollow, PlayerProgress
 │   ├── Vehicle/          VehicleDefinition, IVehicleInput, ArcadeVehicleController
 │   ├── Cargo/            Parcel, ParcelType, ParcelGenerator, CargoManifest, CargoSystem
 │   ├── Delivery/         MapLayout, DeliveryStop, RoutePlanner, DeliverySystem
-│   ├── Economy/          (Aşama 5)
+│   ├── Economy/          EconomyConfig, PayoutCalculator, Payout, EconomyService
 │   ├── Mission/          (Aşama 6)
 │   ├── UI/               (Aşama 6)
 │   ├── Save/             (Aşama 7)
-│   └── Editor/           ProjectSetupTool
+│   └── Editor/           5 kurulum aracı (Project / Vehicle / Content / Delivery / Progression)
 ├── ScriptableObjects/
 │   ├── Definitions/      VehicleDefinition, Parcels/ (6 ParcelType)
-│   └── Database/GameConfig.asset, MapLayout.asset
+│   └── Database/GameConfig.asset, MapLayout.asset, EconomyConfig.asset
 ├── Settings/             URP asset + renderer
 ├── Tests/EditMode/       GameClock, araç fiziği, kargo, sahne bütünlüğü
 ├── Tests/PlayMode/       Gerçek fizikte sürüş
@@ -299,6 +299,74 @@ kimlikli gerçek binalar bu konumlara bindirilecek — asset değişmeyecek.
 
 ---
 
+---
+
+## Aşama 5 — Para + XP/level
+
+| Script | Görevi |
+|---|---|
+| `EconomyConfig` (SO) | Para + XP + seviye eğrisi ayarları |
+| `Payout` | Hesap sonucu: ödeme, bahşiş, ceza, XP |
+| `PayoutCalculator` | **Saf statik formül** — kargo + sonuç → ödeme |
+| `PlayerProgress` | Bakiye, XP, seviye, gün istatistikleri |
+| `DaySummary` | Gün sonu özeti |
+| `EconomyService` | Teslimat olaylarını dinler, ödemeyi uygular |
+
+Menü: `Kargo/5. Ilerleme Ayarlarini Kur`
+
+### Ödeme formülü
+
+```
+ödeme  = kargo değeri × sonuç çarpanı               (1.0 / 0.4 / 0.0)
+bahşiş = kargo değeri × bahsisOranı × kalanSüreOranı   ← sadece Success'te
+XP     = (xpPerDelivery + xpPerKg × ağırlık) × sonuç çarpanı
+```
+
+Bahşiş kalan süreyle ölçeklenir: süre tam kaldıysa tam bahşiş, eşiğin
+altındaysa hiç. Böylece "hızlı teslim = daha çok kazanç" ayrı bir kurala
+gerek kalmadan doğal çıkar.
+
+### Başarısızlık cezası yok
+
+Varsayılan `failedDeliveryPenalty = 0`. Başarısız teslim **para
+kazandırmaz**, ama para da götürmez. Gerekçe: negatif bakiye sinir
+bozucudur ve oyuncuyu kargoyu hiç yüklememeye iter. Bedeli zaten zaman
+kaybıdır — teslimatın ödenmemiş olması yeterince ağır.
+
+### XP eğrisi (kritik)
+
+Her seviye **atlama maliyeti** artar; üs toplama uygulanmaz:
+
+| Seviye | Atlama maliyeti | Kümülatif |
+|---|---|---|
+| 1 → 2 | 100 | 100 |
+| 2 → 3 | 135 | 235 |
+| 3 → 4 | 182 | 417 |
+
+Üs toplama uygulanırsa ilk atlama (100 XP) ikincisinden (35 XP) pahalı
+çıkar; oyuncu ilk seviyede takılıp sonra hızla yükselir. Test bu hatayı
+yakaladı ve eğri düzeltildi.
+
+### Gün döngüsü
+
+Saat 24:00 olduğunda sırayla: teslim edilmemişler başarısız sayılır →
+gün özeti üretilir → istatistikler sıfırlanır → yeni günün kargoları
+üretilir.
+
+Dinleme `DayStarted` / `DayEnded` üzerinden yapılır; sistemler birbirini
+tanımaz, hepsi olay kanalından haber alır.
+
+> **Bulunan hata:** Kargolar yalnızca `Start()`'ta bir kez üretiliyordu —
+> 2. gün depoda **hiç kargo kalmıyordu**. Regresyon testi eklendi.
+
+### Bu aşamada olmayanlar
+
+UI (Aşama 6). Para hareketleri şu an sadece sayı; ekranda görünmüyor.
+Araç yükseltme mağazası, itibar ve şirket büyümesi bu aşamanın
+kapsamında değil.
+
+---
+
 ## Geliştirme aşamaları
 
 | # | Aşama | Durum |
@@ -306,9 +374,8 @@ kimlikli gerçek binalar bu konumlara bindirilecek — asset değişmeyecek.
 | 1 | Proje + ayarlar + çekirdek | ✅ |
 | 2 | Player + araç kontrolü | ✅ |
 | 3 | Kargo sistemi | ⬜ |
-| 3 | Kargo sistemi | ⬜ |
 | 4 | Teslimat sistemi | ✅ |
-| 5 | Para + XP sistemi | ⬜ |
+| 5 | Para + XP sistemi | ✅ |
 | 6 | UI | ⬜ |
 | 7 | Save/Load | ⬜ |
 | 8 | Harita ve içerik | ⬜ |

@@ -523,6 +523,37 @@ namespace KargoSim.Tests
         }
 
         [Test]
+        public void Sistem_BirSonrakiGunKargoUretir()
+        {
+            // Regresyon: kargolar yalnizca Start'ta bir kez uretiliyordu,
+            // 2. gun depoda hic kargo kalmiyordu.
+            var vehicle = MakeVehicle(5000f, 5000f);
+            var system = new CargoSystem(_config, new[] { _type }, vehicle);
+            try
+            {
+                system.BeginDay(1);
+                Assert.AreEqual(12, system.Manifest.AvailableCount, "1. gün 12 kargo.");
+
+                // Gun 1'de birkacini yukle ve teslim et
+                system.TryLoadParcel(system.Manifest.Available[0].Id);
+                system.UnloadVehicle();
+                system.Manifest.BeginDay(system.Manifest.Available);
+
+                system.BeginDay(2);
+
+                Assert.AreEqual(12, system.Manifest.AvailableCount,
+                    "2. gün de 12 kargo üretilmeli.");
+                Assert.AreEqual(0, system.Manifest.LoadedCount,
+                    "Yeni günde araç boş olmalı.");
+                Assert.AreEqual(0f, system.Manifest.LoadedWeightKg, 0.0001f);
+            }
+            finally
+            {
+                Object.DestroyImmediate(vehicle);
+            }
+        }
+
+        [Test]
         public void Sistem_BosTurListesiHataVerir()
         {
             Assert.Throws<System.ArgumentException>(
