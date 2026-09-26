@@ -62,6 +62,15 @@ namespace KargoSim.UI
         private Transform _vehicle;
         private Player.CourierController _courier;
         private Player.VanCargoPoint _vanPoint;
+
+        /// <summary>
+        /// TUM arac kargo noktalari (van + bisiklet).
+        ///
+        /// ASAMA 15: tek nokta tutuluyordu ve F daima van'a biniyordu.
+        /// Iki arac olduktan sonra oyuncu BISIKLETE binemiyordu.
+        /// </summary>
+        private readonly List<Player.VanCargoPoint> _cargoPoints =
+            new List<Player.VanCargoPoint>();
         private bool _bound;
 
         /// <summary>
@@ -216,22 +225,31 @@ namespace KargoSim.UI
                 {
                     bool used = _courier.TryInteract();
 
-                    // ASAMA 15: odakta HICBIR SEY yoksa ve oyuncunun
-                    // elinde kargo varsa E = BIRAK.
-                    //
-                    // Once burada hicbir sey olmuyordu: kutu yalnizca
-                    // araca konunca veya teslim edilince elden cikiyordu.
-                    // "Masaya gotur ve buraya birak" YAPILAMIYORDU.
-                    // Dikey dilim bu adimda koptugu icin oyun basindan
-                    // sonuna kadar oynanamazdi.
-                    if (!used && !atDepot) TryDropCarried();
-                    else if (!used && atDepot) OpenDepot();
+                    // Odakta hedef yoksa ve oyuncu depoda degilse
+                    // depo panelini ac (eski davranis).
+                    if (!used && atDepot) OpenDepot();
                 }
                 else if (_courier != null && _courier.IsInVehicle)
                 {
                     if (_delivery != null && _delivery.CurrentStop != null) RequestDeliverNext();
                 }
                 else if (atDepot) OpenDepot();
+            }
+
+            // --- G: elindeki kutuyu BIRAK ---
+            //
+            // ASAMA 15: BIRAKMA E'YE baglanmisti ve calismiyordu.
+            // Iki sebep:
+            //  1) Kutu alindigi yer depo; depoda E depo panelini ACHIYOR,
+            //     birakma hic denenmiyordu.
+            //  2) Depoda oyuncunun odagi rafta oldugu icin E yeni kutu
+            //     ALIYORDU, birakma diye hic ulasilamiyordu.
+            //
+            // Cozum: ayri tus. E baglamsal kalir (her zaman hedefi alir),
+            // G her zaman birakir. Karistirma yok.
+            if (Input.GetKeyDown(KeyCode.G) && !depotOpen)
+            {
+                if (_courier != null && !_courier.IsInVehicle) TryDropCarried();
             }
 
             // --- Depo paneli acikken: rakam sec, Q bosalt, E yukle ---
@@ -262,26 +280,104 @@ namespace KargoSim.UI
         /// </summary>
         private void ToggleVehicle()
         {
-            if (_courier == null || _vanPoint == null) return;
+            if (_courier == null) return;
+
+            // ASAMA 15: IKI ARAÇ var (van + bisiklet) ve F oyuncunun
+            // YANINDAKİ araca binmeli.
+            //
+            // Once TEK bir kargo noktasi tutuluyordu ve o her zaman VAN'in
+            // noktasiydi. Sonuc: bisiklete HICBIR ZAMAN binilemiyordu,
+            // F her zaman van'a biniyordu. Oyuncu "bisiklet binemedim"
+            // dedi - dogruydu.
+            var near = NearestCargoPoint();
+            if (near == null)
+            {
+                if (hud != null)
+                    hud.SetHint("Arac yok: bisiklet veya vanin yanina git");
+                return;
+            }
 
             if (_courier.IsInVehicle)
             {
-                if (!_vanPoint.IsVehicleSlow())
+                if (!near.IsVehicleSlow())
                 {
                     if (hud != null) hud.SetHint("Arac yavaslayinca inebilirsin");
                     return;
                 }
 
-                _vanPoint.SettleAfterExit();
-                _courier.ExitVehicle(_vanPoint.ExitSpot());
+                near.SettleAfterExit();
+                _courier.ExitVehicle(near.ExitSpot());
                 return;
             }
 
-            _vanPoint.Board(_courier);
+            near.Board(_courier);
         }
 
-        public void SetVanPoint(Player.VanCargoPoint point)        {
+        /// <summary>
+        /// Oyuncunun EN YAKININDAKI arac kargo noktasi.
+        ///
+        /// Neden "en yakin" ve "odak" degil: oyuncu aracin yaninda ama
+        /// kamerasi onune bakmiyor olabilir. yakinlik kurali "yaninda
+        /// dur" demiyi daha guvenilir kiliyor.
+        ///
+        /// Eski aracla birlikte "binilmis" arac varsa odur: iki arac da
+        /// yakinlikte ayni olabilir.
+        /// </summary>
+        private Player.VanCargoPoint NearestCargoPoint()
+        {
+            Player.VanCargoPoint best = null;
+            float bestDistance = 4.5f;   // binecek kadar yakin
+
+            if (_vanPoint != null)
+            {
+                // Su an kullanilan arac: her zaman oncelikli.
+                if (_courier.ActiveVehicle != null &&
+                    _vanPoint != null &&
+                    _courier.ActiveVehicle.VehicleTransform != null)
+                {
+                    float d = Vector3.Distance(
+                        _courier.transform.position,
+                        _vanPoint.transform.position);
+                    best = _vanPoint;
+                    bestDistance = d;
+                }
+            }
+
+            for (int i = 0; i < _cargoPoints.Count; i++)
+            {
+                var point = _cargoPoints[i];
+                if (point == null) continue;
+
+                float d = Vector3.Distance(
+                    _courier.transform.position, point.transform.position);
+                if (d >= bestDistance) continue;
+
+                bestDistance = d;
+                best = point;
+            }
+
+            return best;
+        }
+
+        public void SetVanPoint(Player.VanCargoPoint point)
+        {
             _vanPoint = point;
+            RegisterCargoPoint(point);
+        }
+
+        /// <summary>Tum arac kargo noktalarini kaydeder (iki arac icin).</summary>
+        public void SetCargoPoints(System.Collections.Generic.List<Player.VanCargoPoint> points)
+        {
+            _cargoPoints.Clear();
+            if (points == null) return;
+            for (int i = 0; i < points.Count; i++) _cargoPoints.Add(points[i]);
+        }
+
+        private void RegisterCargoPoint(Player.VanCargoPoint point)
+        {
+            if (point == null) return;
+            if (_cargoPoints.Contains(point)) return;
+            _cargoPoints.Add(point);
         }
 
         /// <summary>

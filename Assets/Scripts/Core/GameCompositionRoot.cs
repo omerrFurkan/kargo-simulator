@@ -357,6 +357,23 @@ namespace KargoSim.Core
 
             if (primaryCargoPoint != null) uiManager?.SetVanPoint(primaryCargoPoint);
 
+            // TUM noktalar HUD'a verilir: F tusu oyuncunun yanindaki araca
+            // binmeli. Tek nokta verilseydi F daima van'a biner ve
+            // bisiklete hiç binilemezdi.
+            if (uiManager != null)
+            {
+                var pointList = new List<Player.VanCargoPoint>();
+                for (int i = 0; i < allCargoPoints.Length; i++)
+                {
+                    var p = allCargoPoints[i];
+                    if (p == null) continue;
+
+                    var owner = FindOwningVehicle(p, allVehicles);
+                    if (owner != null) pointList.Add(p);
+                }
+                uiManager.SetCargoPoints(pointList);
+            }
+
             // Kurye baslangicta bisiklette mi van'da mi olacak? Simdilik
             // kurye oyuna van'da basliyor (playerVehicle = van). Bisiklet
             // ikinci arac olarak duruyor. Bu bir oyun tasarimi karari;
