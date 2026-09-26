@@ -173,6 +173,18 @@ namespace KargoSim.Player
         {
             if (courier == null || courier.IsInVehicle) return;
 
+            // ASAMA 18: BINME KONUMUNU HATIRLA.
+            //
+            // Oyuncu: "bisikletten inince ilk bindigim konumda oluyorum".
+            // Once ExitSpot() sabit bir noktaydi (aracin 2.2 m yaninda),
+            // o yuzden oyuncu bittigi yerde degil, her zaman aracin
+            // hizasinda beliriyordu - ozellikle uzaktan binip inince
+            // "beni nereye birakmissin" durumu olusuyordu.
+            //
+            // Artik oyuncunun GERCEKTEN bindigi konuma donulur.
+            _lastBoardPosition = courier.transform.position;
+            _hasBoardPosition = true;
+
             // Once BURAYA ExitVehicle cagriliyordu ve karakter arac
             // disinda kaldiigi icin oyuncu araca bir daha HICBIR ZAMAN
             // binemiyordu; oyun 2. adimda bitiyordu. Dogru cagri
@@ -186,6 +198,9 @@ namespace KargoSim.Player
             courier.EnterVehicle();
         }
 
+        private Vector3 _lastBoardPosition;
+        private bool _hasBoardPosition;
+
         /// <summary>
         /// Karakterin arac lastiginin yanina inmesi icin guvenli nokta.
         ///
@@ -195,6 +210,10 @@ namespace KargoSim.Player
         /// </summary>
         public Vector3 ExitSpot()
         {
+            // Oyuncu bindigi konuma doner. Binmisse kayitli konum
+            // kullanilir; hic binmemisse aracin yani varsayilir.
+            if (_hasBoardPosition) return _lastBoardPosition;
+
             Transform reference = _vehicle != null ? _vehicle.VehicleTransform : transform;
             Vector3 right = Vector3.ProjectOnPlane(reference.right, Vector3.up).normalized;
             if (right.sqrMagnitude < 0.01f) right = Vector3.right;
@@ -265,10 +284,35 @@ namespace KargoSim.Player
 
             courier.PlayAction("pick-up", 0.4f);
 
-            if (rejected > 0)
-                Debug.LogWarning("[VanCargoPoint] " + rejected + " kutu araca sigmadi (kapasite); elde kaldi.");
-            if (moved > 0)
-                Debug.Log("[VanCargoPoint] " + moved + " kutu araca yuklendi.");
-        }
+              if (rejected > 0)
+                  Debug.LogWarning("[VanCargoPoint] " + rejected + " kutu araca sigmadi (kapasite); elde kaldi.");
+              if (moved > 0)
+                  Debug.Log("[VanCargoPoint] " + moved + " kutu araca yuklendi.");
+
+              // ASAMA 18: oyuncuya ACIKLA sebebini goster.
+              //
+              // Sessiz red oyuncuyu en cok yoran sey: kutu tasiyor,
+              // aracin yaninda, E'ye basiyor, hicbir sey olmuyor ve
+              // neden oldugunu oyuncu bilmiyor.
+              if (moved == 0 && rejected > 0)
+              {
+                  bool anyUnpackaged = false;
+                  for (int i = 0; i < carried.Count; i++)
+                      if (carried[i] != null && !carried[i].IsPackaged) { anyUnpackaged = true; break; }
+
+                  courier.LastActionHint = anyUnpackaged
+                      ? "Bu kutu HENUZ PAKETLENMIS DEGIL. Once paketleme "
+                        + "masasina gotur, 6 adimi tamamla, sonra araca koy."
+                      : "Arac dolu. Kapasite: " + _cargo.Manifest.LoadedCount
+                        + " kutu yuklu (kg/litre sinirinda)";
+              }
+              else
+              {
+                  courier.LastActionHint = moved > 0
+                      ? moved + " kutu araca yuklendi."
+                      : string.Empty;
+              }
+          }
+
     }
 }

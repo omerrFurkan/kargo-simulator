@@ -165,6 +165,9 @@ namespace KargoSim.UI
             // Odeme/seviye bildiriminin suresi dolduysa gizle
             if (hud != null) hud.TickFeedback();
 
+            // ASAMA 18: zamanli mesajin suresi dolduysa kapat.
+            TickMessage(deltaTime);
+
             // Yalnizca baglama bagli olan minimap her kare tazelenir.
             if (minimap != null && _vehicle != null)
                 minimap.SetVehiclePosition(_vehicle.position);
@@ -184,7 +187,7 @@ namespace KargoSim.UI
                 {
                     summaryView.Hide();
                 }
-                UpdateHint(atDepot, depotOpen);
+                UpdateHudPrompt(atDepot, depotOpen);
                 return;
             }
 
@@ -225,6 +228,12 @@ namespace KargoSim.UI
                 if (_courier != null && !_courier.IsInVehicle)
                 {
                     bool used = _courier.TryInteract();
+
+                    // ASAMA 18: etkilesim reddedildiyse SEBEBINI goster.
+                    // Sessiz ret oyuncuyu en cok yoran sey: kutu tasidi,
+                    // aracin yanina gitti, E'ye basti, hicbir sey olmadi.
+                    if (!used && !string.IsNullOrEmpty(_courier.LastActionHint))
+                        ShowHint(_courier.LastActionHint);
 
                     // Odakta hedef yoksa ve oyuncu depoda degilse
                     // depo panelini ac (eski davranis).
@@ -271,7 +280,7 @@ namespace KargoSim.UI
             // sigdirilsaydi arac doluyken oyuncu hic binemezdi.
             if (Input.GetKeyDown(boardKey)) ToggleVehicle();
 
-            UpdateHint(atDepot, depotOpen);
+            UpdateHudPrompt(atDepot, depotOpen);
         }
 
         /// <summary>
@@ -412,12 +421,39 @@ namespace KargoSim.UI
         /// Oyuncuya ANLIK ne yapabilecegini yazar. Kimse 10 deneme
         /// yapip dogru tusu bulmamali.
         /// </summary>
-        private void UpdateHint(bool atDepot, bool depotOpen)
+        private string _message;
+        private float _messageTimer;
+
+        /// <summary>
+        /// Ekranda gecici olarak gosterilen aciklama.
+        ///
+        /// ASAMA 18: etkilesim reddedildiginde oyuncu SEBEBINI ogrenmeli.
+        /// Normal ipucu satiri her karede yeniden yazildigi icin red
+        /// sebebi kaybolup gidiyordu; bu yuzden ayri, zamanli bir mesaj
+        /// alani var.
+        /// </summary>
+        private void ShowHint(string message)
+        {
+            _message = message;
+            _messageTimer = 4f;
+        }
+
+        private void TickMessage(float deltaTime)
+        {
+            if (_messageTimer <= 0f) return;
+            _messageTimer -= deltaTime;
+            if (_messageTimer <= 0f) { _messageTimer = 0f; _message = null; }
+        }
+
+        /// <summary>
+        /// ASAMA 18: zamanli mesaj varsa ONU goster, yoksa normal ipucu.
+        /// </summary>
+        private void UpdateHudPrompt(bool atDepot, bool depotOpen)
         {
             if (hud == null) return;
 
-            // Ayaktayken: odaktaki hedefin ipucu. Oyuncu ne yapabilecegini
-            // E'ye basmadan gorur.
+            if (!string.IsNullOrEmpty(_message)) { hud.SetHint(_message); return; }
+
             if (_courier != null && !_courier.IsInVehicle)
             {
                 var focus = _courier.Focus;
@@ -425,9 +461,6 @@ namespace KargoSim.UI
                 if (_courier.IsCarrying)
                     prompt = (prompt == "" ? "" : prompt + "    |    ") + "Elde: " + _courier.CarriedCount;
 
-                // Odak yokken SABIT metin yazmak yanilticiydi: oyuncu
-                // aracin arkasina yururken de "dukkana gir" yaziyordu.
-                // Artik gercek duruma gore susar.
                 hud.SetHint(prompt);
                 return;
             }

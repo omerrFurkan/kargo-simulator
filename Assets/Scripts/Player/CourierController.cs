@@ -142,6 +142,20 @@ namespace KargoSim.Player
         /// <summary>Odakta olan etkilesim noktasi (yoksa null).</summary>
         public IInteractable Focus => _focus;
 
+        /// <summary>
+        /// Son etkilesimde oyuncuya gosterilecek ACIKLAMA.
+        ///
+        /// ASAMA 18: kutu araca konmuyordu ve oyuncu SEBEBINI GOREMIYORDU.
+        /// VanCargoPoint paketlenmemis kutuyu sessizce reddediyor, sadece
+        /// Debug.Log yaziyordu - oyuncu o logu gormez. Sonuc: oyuncu
+        /// kutu tasidi, aracin yanina gitti, E'ye basti ve HICBIR SEY
+        /// olmadi. "Kutuyu araca koyamiyorum" diye rapor etti.
+        ///
+        /// Simdi red sebebi buraya yazilir ve UIManager ekranda gosterir.
+        /// Bos string = gosterilecek bir sey yok.
+        /// </summary>
+        public string LastActionHint { get; set; } = string.Empty;
+
         public bool Configure(Transform carryAnchorTransform, Camera fpsCam, Camera vehicleCam,
                               Animator anim, IVehicleController vehicle)
         {
