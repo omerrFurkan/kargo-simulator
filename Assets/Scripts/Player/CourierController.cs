@@ -33,7 +33,19 @@ namespace KargoSim.Player
         [SerializeField] private Camera vehicleCamera;
         [SerializeField] private Transform carryAnchor;
         [SerializeField] private Animator animator;
-        [SerializeField] private ArcadeVehicleController vehicleController;
+        [SerializeField] private IVehicleController vehicleController;
+
+        /// <summary>
+        /// Su an kullanilan arac (van veya bisiklet).
+        ///
+        /// Asama 14: iki arac var ve oyuncu ikisine de binip inebiliyor.
+        /// Kurye TEK bir arac tutmaz; binilen arac degisir. Onceki tip
+        /// (ArcadeVehicleController) olarak yazilmis ve ikinci araci
+        /// kapsayamazdi - bu alan sozlesmeye cevrildi.
+        ///
+        /// Disaridan atama: <see cref="SetActiveVehicle"/>.
+        /// </summary>
+        public IVehicleController ActiveVehicle => vehicleController;
 
         [Header("Hareket")]
         [SerializeField] private float walkSpeed = 3.4f;
@@ -106,7 +118,7 @@ namespace KargoSim.Player
         public IInteractable Focus => _focus;
 
         public bool Configure(Transform carryAnchorTransform, Camera fpsCam, Camera vehicleCam,
-                              Animator anim, ArcadeVehicleController vehicle)
+                              Animator anim, IVehicleController vehicle)
         {
             if (carryAnchorTransform != null) carryAnchor = carryAnchorTransform;
             if (fpsCam != null) fpsCamera = fpsCam;
@@ -114,6 +126,31 @@ namespace KargoSim.Player
             if (anim != null) animator = anim;
             if (vehicleController == null) vehicleController = vehicle;
             return true;
+        }
+
+        /// <summary>
+        /// Kullanilacak araci degistirir (Asama 14: van <-> bisiklet).
+        ///
+        /// NEDEN VAR: oyuncu iki arac arasinda gecis yapiyor ve kurye
+        /// "simdi hangi aracin kamerasini kullaniyorum" sorusunu
+        /// bilmiyor. Bu metot kargo noktasi tarafindan cagrilir.
+        ///
+        /// GUVENLILIK: kuryu hala arac icindeyken arac degistirilirse
+        /// ESKI arac kilitlenip yeni arac kilidi acilir; boylece oyuncu
+        /// havada kalmaz.
+        /// </summary>
+        public void SetActiveVehicle(IVehicleController vehicle, Camera driverCamera)
+        {
+            if (vehicle == null) return;
+
+            if (_inVehicle && vehicleController != null && vehicleController != vehicle)
+                vehicleController.ControlsLocked = true;
+
+            vehicleController = vehicle;
+            if (driverCamera != null) vehicleCamera = driverCamera;
+            vehicleController.SetDriverCamera(driverCamera);
+
+            if (_inVehicle) vehicleController.ControlsLocked = false;
         }
 
         // ------------------------------------------------------------------
@@ -392,8 +429,8 @@ namespace KargoSim.Player
             }
             // Karakter aracin bakis yonune doner: ileri yon kargo
             // yukleme / kapi yonu olsun.
-            if (vehicleController != null)
-                transform.rotation = vehicleController.transform.rotation;
+            if (vehicleController != null && vehicleController.VehicleTransform != null)
+                transform.rotation = vehicleController.VehicleTransform.rotation;
 
             SetVisible(true);
             if (fpsCamera != null) fpsCamera.enabled = true;

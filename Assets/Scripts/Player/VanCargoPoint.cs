@@ -6,13 +6,19 @@ using UnityEngine;
 namespace KargoSim.Player
 {
     /// <summary>
-    /// Aracin kargo kapisi: iki isi vardir.
+    /// Aracın kargo kapisi: iki isi vardir.
     ///
     ///  - Elde kargo varken  E  -> kargoyu araca koy
     ///  - Elde kargo yokken  E  -> araca bin
     ///
     /// Tek bir noktada iki davranis olmasi oyuncunun tek bir yer
     /// bulmasini saglar ("buraya gel, E'ye bas").
+    ///
+    /// SINIF ADI "Van" OLSA DA geneldir: fizik motoru yerine
+    /// <see cref="IVehicleController"/> sozlesmesini kullanir, bu yuzden
+    /// ayni nokta hem vani hem 3 tekerli kargo bisikletini yonetir
+    /// (Asama 14). Sinif adi tarihsel bir izdir; yeniden adlandirmak
+    /// tum cagrilari degistirirdi ve getirisi yoktu.
     /// </summary>
     [DisallowMultipleComponent]
     public sealed class VanCargoPoint : MonoBehaviour, IInteractable
@@ -23,11 +29,11 @@ namespace KargoSim.Player
         private CargoSystem _cargo;
         private DeliverySystem _delivery;
         private CourierController _courier;
-        private ArcadeVehicleController _vehicle;
+        private IVehicleController _vehicle;
         private Camera _vehicleCamera;
 
         public void Configure(CargoSystem cargo, DeliverySystem delivery, CourierController courier,
-                              ArcadeVehicleController vehicle, Camera vehicleCamera)
+                              IVehicleController vehicle, Camera vehicleCamera)
         {
             _cargo = cargo;
             _delivery = delivery;
@@ -168,9 +174,15 @@ namespace KargoSim.Player
             if (courier == null || courier.IsInVehicle) return;
 
             // Once BURAYA ExitVehicle cagriliyordu ve karakter arac
-            // disinda kaldigi icin oyuncu araca bir daha HICBIR ZAMAN
+            // disinda kaldiigi icin oyuncu araca bir daha HICBIR ZAMAN
             // binemiyordu; oyun 2. adimda bitiyordu. Dogru cagri
             // EnterVehicle.
+            //
+            // Asama 14: binmeden ONCE kuryeye bu araci "aktif" et. Iki
+            // arac oldugundan kurye hangi kamerayi ve hangi fizigi
+            // kullanacagini bilmiyor.
+            if (_vehicle != null) courier.SetActiveVehicle(_vehicle, _vehicleCamera);
+
             courier.EnterVehicle();
         }
 
@@ -183,7 +195,7 @@ namespace KargoSim.Player
         /// </summary>
         public Vector3 ExitSpot()
         {
-            Transform reference = _vehicle != null ? _vehicle.transform : transform;
+            Transform reference = _vehicle != null ? _vehicle.VehicleTransform : transform;
             Vector3 right = Vector3.ProjectOnPlane(reference.right, Vector3.up).normalized;
             if (right.sqrMagnitude < 0.01f) right = Vector3.right;
             return reference.position + right * 2.2f + Vector3.up * 0.1f;

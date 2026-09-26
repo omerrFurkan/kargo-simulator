@@ -24,7 +24,7 @@ namespace KargoSim.Vehicle
     [RequireComponent(typeof(Rigidbody))]
     [RequireComponent(typeof(BoxCollider))]
     [DisallowMultipleComponent]
-    public sealed class ArcadeVehicleController : MonoBehaviour
+    public sealed class ArcadeVehicleController : MonoBehaviour, IVehicleController
     {
         [Header("Tanim")]
         [SerializeField] private VehicleDefinition definition;
@@ -32,6 +32,9 @@ namespace KargoSim.Vehicle
         [Header("Tekerler")]
         [Tooltip("Sira ON SOL, ON SAG, ARKA SOL, ARKA SAG. Ilk iki teker yonlendirilir.")]
         [SerializeField] private WheelCollider[] wheels = new WheelCollider[4];
+
+        /// <summary>Surucu kamerasi (IVehicleController uzerinden baglanir).</summary>
+        private Camera _driverCamera;
 
         [Header("Girdi")]
         [SerializeField] private MonoBehaviour inputSource;
@@ -61,6 +64,20 @@ namespace KargoSim.Vehicle
         /// belirsizligi olusmaz.
         /// </summary>
         public bool ControlsLocked { get; set; }
+
+        /// <summary>IVehicleController: kargo noktasi cikis yerini bu agac uzerinden hesaplar.</summary>
+        public Transform VehicleTransform => transform;
+
+        /// <summary>
+        /// IVehicleController: surucu kamerasi.
+        ///
+        /// NOT: bu arac sinifinda kamera sahne tarafindan baglanir ve
+        /// kurye tarafindan yonetilir; burada sadece referans saklanir.
+        /// </summary>
+        public void SetDriverCamera(Camera camera)
+        {
+            _driverCamera = camera;
+        }
 
         // ------------------------------------------------------------------
         // Yasam dongusu

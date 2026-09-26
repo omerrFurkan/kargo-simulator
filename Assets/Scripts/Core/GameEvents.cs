@@ -191,7 +191,26 @@ namespace KargoSim.Core
             DaySummaryReady?.Invoke(summary);
 
         /// <summary>
-        /// Editor ayarlarinda "Domain Reload: Disabled" kullanildigi icin statik
+        /// PlayMode TESTLERI icin statik olaylari sifirlar.
+        ///
+        /// NEDEN GEREKLI: <see cref="ResetStatics"/> yalnizca Play BASINDA
+        /// (SubsystemRegistration) calisir. PlayMode test kosucusu ise her
+        /// test icin sahne yukleyip SAKNEYI BOŞALTIR ama oyunu yeniden
+        /// baslatmaz - yani statik bus testler arasi temizlenmez.
+        ///
+        /// Sonuc: bir onceki testin yikilan sahnesinden kalan bir
+        /// CodeEntryView, sonraki testte NPCAnswered yayinlandiginda cagrilir
+        /// ve "object has been destroyed" exception'i atar. Tek test tek
+        /// basina gecer, toplu kosuda duser - bu bir oyun hatasi DEGIL,
+        /// test kosucusunun yaşam dongusu farkindadir.
+        ///
+        /// DIKKAT: oyun calisirken cagrilmamalidir; yalnizca test
+        /// TearDown'inda kullanilir.
+        /// </summary>
+        public static void ResetForTests() => ResetStatics();
+
+        /// <summary>
+        /// "Domain Reload: Disabled" kullanildiginda statik
         /// event'ler Play'den cikarken temizlenmez. Play'e girildiginde hepsini
         /// sifirlamazsak eski (ölü) dinleyicilerle dolu bir bus ile calisiriz.
         /// </summary>

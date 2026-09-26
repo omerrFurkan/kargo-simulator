@@ -2041,7 +2041,6 @@ MonoBehaviour:
   vehicleCamera: {fileID: 379351579}
   carryAnchor: {fileID: 275707462}
   animator: {fileID: 1426752093}
-  vehicleController: {fileID: 515918736}
   walkSpeed: 3.4
   runSpeed: 5.6
   jumpHeight: 1.1
@@ -4326,6 +4325,63 @@ MeshFilter:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 332140725}
   m_Mesh: {fileID: 10202, guid: 0000000000000000e000000000000000, type: 0}
+--- !u!1001 &333309884
+PrefabInstance:
+  m_ObjectHideFlags: 0
+  serializedVersion: 2
+  m_Modification:
+    serializedVersion: 3
+    m_TransformParent: {fileID: 0}
+    m_Modifications:
+    - target: {fileID: 1411320453731065692, guid: 8a9b8c4ba68e373439ab4e44ff6f6e19, type: 3}
+      propertyPath: m_LocalPosition.x
+      value: 3.6
+      objectReference: {fileID: 0}
+    - target: {fileID: 1411320453731065692, guid: 8a9b8c4ba68e373439ab4e44ff6f6e19, type: 3}
+      propertyPath: m_LocalPosition.y
+      value: 0.6
+      objectReference: {fileID: 0}
+    - target: {fileID: 1411320453731065692, guid: 8a9b8c4ba68e373439ab4e44ff6f6e19, type: 3}
+      propertyPath: m_LocalPosition.z
+      value: 1.2
+      objectReference: {fileID: 0}
+    - target: {fileID: 1411320453731065692, guid: 8a9b8c4ba68e373439ab4e44ff6f6e19, type: 3}
+      propertyPath: m_LocalRotation.w
+      value: 0.9396927
+      objectReference: {fileID: 0}
+    - target: {fileID: 1411320453731065692, guid: 8a9b8c4ba68e373439ab4e44ff6f6e19, type: 3}
+      propertyPath: m_LocalRotation.x
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 1411320453731065692, guid: 8a9b8c4ba68e373439ab4e44ff6f6e19, type: 3}
+      propertyPath: m_LocalRotation.y
+      value: -0.34202015
+      objectReference: {fileID: 0}
+    - target: {fileID: 1411320453731065692, guid: 8a9b8c4ba68e373439ab4e44ff6f6e19, type: 3}
+      propertyPath: m_LocalRotation.z
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 1411320453731065692, guid: 8a9b8c4ba68e373439ab4e44ff6f6e19, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.x
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 1411320453731065692, guid: 8a9b8c4ba68e373439ab4e44ff6f6e19, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.y
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 1411320453731065692, guid: 8a9b8c4ba68e373439ab4e44ff6f6e19, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.z
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 1777597455290393991, guid: 8a9b8c4ba68e373439ab4e44ff6f6e19, type: 3}
+      propertyPath: m_Name
+      value: CargoBike
+      objectReference: {fileID: 0}
+    m_RemovedComponents: []
+    m_RemovedGameObjects: []
+    m_AddedGameObjects: []
+    m_AddedComponents: []
+  m_SourcePrefab: {fileID: 100100000, guid: 8a9b8c4ba68e373439ab4e44ff6f6e19, type: 3}
 --- !u!1 &335093005
 GameObject:
   m_ObjectHideFlags: 0
@@ -5173,6 +5229,8 @@ MonoBehaviour:
   baseFov: 60
   maxSpeedFov: 78
   speedForMaxFovKmh: 110
+  driverMode: 0
+  driverLocalOffset: {x: 0, y: 1.25, z: 0.35}
 --- !u!1 &388379222
 GameObject:
   m_ObjectHideFlags: 0
@@ -7091,17 +7149,6 @@ Transform:
   m_CorrespondingSourceObject: {fileID: 4942207433452877682, guid: 43cdc518d9974c149bb6d46fad29581c, type: 3}
   m_PrefabInstance: {fileID: 515918734}
   m_PrefabAsset: {fileID: 0}
---- !u!114 &515918736 stripped
-MonoBehaviour:
-  m_CorrespondingSourceObject: {fileID: 3498317261621688323, guid: 43cdc518d9974c149bb6d46fad29581c, type: 3}
-  m_PrefabInstance: {fileID: 515918734}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 0}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: fa91d57dce73fa94a9161ebe031e3407, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: KargoSim.Runtime::KargoSim.Vehicle.ArcadeVehicleController
 --- !u!1 &516877937
 GameObject:
   m_ObjectHideFlags: 0
@@ -24915,3 +24962,4 @@ SceneRoots:
   - {fileID: 1865057297}
   - {fileID: 1240984877}
   - {fileID: 1224402272}
+  - {fileID: 333309884}

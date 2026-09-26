@@ -1,0 +1,32 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: dc995003624e7c34aa432e9afedc51d5, type: 3}
+  m_Name: Vehicle_Bicycle
+  m_EditorClassIdentifier: KargoSim.Runtime::KargoSim.Vehicle.VehicleDefinition
+  mass: 180
+  centerOfMassHeight: 0.32
+  maxSpeed: 22
+  maxReverseSpeed: 6
+  engineForce: 1400
+  handbrakeStrength: 2
+  brakeForce: 1800
+  maxSteerAngle: 38
+  minSteerFactor: 0.35
+  lateralGrip: 8
+  downforce: 0
+  autoUprightSpeed: 120
+  cargoCapacityKg: 60
+  cargoCapacityLiters: 150
+  suspensionDistance: 0.15
+  suspensionSpring: 14000
+  suspensionDamper: 2200
+  wheelRadius: 0.32

@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using KargoSim.Cargo;
 using UnityEngine;
@@ -295,11 +296,55 @@ namespace KargoSim.Core
                 pile.Configure(_cargo, boxes);
             }
 
-            var vanPoint = FindFirstObjectByType<Player.VanCargoPoint>();
-            if (vanPoint != null)
+            // ASAMA 14: her aracin kendi kargo noktasi ve kendi
+            // surucu kamerasi var.
+            //
+            // Once TEK bir nokta bulunuyordu (FindFirstObjectByType) ve
+            // vanin kamerasi (Camera.main) her iki araca da veriliyordu.
+            // Iki arac olunca bu ikisi de yanlis olurdu: bisikletin kargo
+            // noktasi baglanmazdi (yukleme calismazdi) ve iki arac tek
+            // kamerayi paylasirdi.
+            //
+            // Kargo noktasi <-> arac eslesmesi KONUMLA yapilir: nokta
+            // hangi aracin sinirlari icindeyse odur. Cocuk nesne
+            // (kasa, arka) oldugu icin GetComponentInParent kullanilir.
+            var allCargoPoints = FindObjectsByType<Player.VanCargoPoint>(
+                FindObjectsInactive.Include, FindObjectsSortMode.None);
+            var allVehicles = FindAllVehicles();
+
+            Player.VanCargoPoint primaryCargoPoint = null;
+
+            for (int i = 0; i < allCargoPoints.Length; i++)
             {
-                vanPoint.Configure(_cargo, _delivery, courier, vehicleController, vehicleCamera);
-                uiManager?.SetVanPoint(vanPoint);
+                var point = allCargoPoints[i];
+                var owner = FindOwningVehicle(point, allVehicles);
+                if (owner == null) continue;
+
+                point.Configure(_cargo, _delivery, courier, owner, FindVehicleCamera(owner));
+
+                // HUD'in kullandigi nokta: oyuncunun surdugu aracin
+                // noktasi. Van ilk sira gelir (sahne kurulum sirasi).
+                if (primaryCargoPoint == null) primaryCargoPoint = point;
+            }
+
+            if (primaryCargoPoint != null) uiManager?.SetVanPoint(primaryCargoPoint);
+
+            // Kurye baslangicta bisiklette mi van'da mi olacak? Simdilik
+            // kurye oyuna van'da basliyor (playerVehicle = van). Bisiklet
+            // ikinci arac olarak duruyor. Bu bir oyun tasarimi karari;
+            // raporda PM'e soruldu.
+            var bike = FindObjectOfType<Vehicle.BicycleController>();
+            if (bike != null)
+            {
+                bike.ControlsLocked = true;
+                var bikeVisual = bike.GetComponent<Player.CargoBikeVisual>();
+                if (bikeVisual != null)
+                {
+                    Transform bed = bikeVisual.CargoBed != null
+                        ? bikeVisual.CargoBed
+                        : bike.transform.Find("CargoCage/CargoBed");
+                    if (bed != null) bikeVisual.ConfigureForSetup(bed);
+                }
             }
 
             var door = FindFirstObjectByType<Player.AddressDoor>();
@@ -464,6 +509,87 @@ namespace KargoSim.Core
         private void OnMissionLevelUp(int level)
         {
             _missions?.Report(Mission.MissionKind.ReachLevel, level, true);
+        }
+
+        /// <summary>
+        /// Sahnedeki TUM araclari toplar.
+        ///
+        /// Neden FindObjectsByType(IVehicleController) DEGIL: Unity'nin
+        /// o overload'i `where T : Object` istiyor ve bir ARAYUZ
+        /// karsilamaz (CS0311). Cozum, tum MonoBehaviour'leri taramak ve
+        /// arayuzu eleyerek istemek - sahne kucuk, maliyet bir kez.
+        ///
+        /// Sadece bilesen tabanli araclar sayilir; arayuzu baska bir
+        /// MonoBehaviour de (ornegin test kancasI) uyguluyorsa yine
+        /// gecerli: bir aracin parcasi olmasi yeterli.
+        /// </summary>
+        private static List<Vehicle.IVehicleController> FindAllVehicles()
+        {
+            var result = new List<Vehicle.IVehicleController>();
+
+            var behaviours = FindObjectsByType<MonoBehaviour>(
+                FindObjectsInactive.Include, FindObjectsSortMode.None);
+
+            for (int i = 0; i < behaviours.Length; i++)
+            {
+                var v = behaviours[i] as Vehicle.IVehicleController;
+                if (v != null) result.Add(v);
+            }
+
+            return result;
+        }
+
+        /// <summary>
+        /// Bir etkilesim noktasinin hangi araca ait oldugunu bulur.
+        ///
+        /// Kargo noktasi aracin kasa/arka cocuk nesnesidir; iki arac da
+        /// depoya yakin durdugu icin "en yakin" secimi yeterlidir.
+        /// </summary>
+        private static Vehicle.IVehicleController FindOwningVehicle(
+            Component point, List<Vehicle.IVehicleController> candidates)
+        {
+            Vehicle.IVehicleController best = null;
+            float bestDistance = float.MaxValue;
+            Vector3 origin = point.transform.position;
+
+            for (int i = 0; i < candidates.Count; i++)
+            {
+                var v = candidates[i];
+                if (v == null || v.VehicleTransform == null) continue;
+
+                float d = (v.VehicleTransform.position - origin).sqrMagnitude;
+                if (d >= bestDistance) continue;
+
+                bestDistance = d;
+                best = v;
+            }
+
+            return best;
+        }
+
+        /// <summary>
+        /// Araca ait surucu kamerasini bulur.
+        ///
+        /// Her aracin kendi takip kamerasi vardir (van: arka takip,
+        /// bisiklet: gidon). Kameraya isaret eden bir CameraFollow
+        /// bulunur ve o kameranin Camera bileseni donulur.
+        ///
+        /// Bulunamazsa Camera.main'e dusulur: oyun HICBIR kamera olmadan
+        /// oynanamaz, o yuzden bulamamak oyunu calisamaz yapmamali.
+        /// </summary>
+        private static Camera FindVehicleCamera(Vehicle.IVehicleController vehicle)
+        {
+            if (vehicle != null && vehicle.VehicleTransform != null)
+            {
+                var follows = vehicle.VehicleTransform.GetComponentsInChildren<Player.CameraFollow>(true);
+                for (int i = 0; i < follows.Length; i++)
+                {
+                    var cam = follows[i].GetComponent<Camera>();
+                    if (cam != null) return cam;
+                }
+            }
+
+            return Camera.main;
         }
 
         /// <summary>

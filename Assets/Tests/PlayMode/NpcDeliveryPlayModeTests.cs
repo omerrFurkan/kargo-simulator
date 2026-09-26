@@ -55,6 +55,11 @@ namespace KargoSim.Tests.PlayMode
                 while (!unload.isDone) yield return null;
             }
             yield return null;
+
+            // Statik olay bus'i PlayMode testler arasi temizlenmez;
+            // yoksa bir onceki testin yikilan sahnesinden kalan
+            // CodeEntryView sonraki testte cagrilip exception atar.
+            Core.GameEvents.ResetForTests();
         }
 
         private IEnumerator LoadGame()

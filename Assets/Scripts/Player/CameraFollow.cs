@@ -41,9 +41,19 @@ namespace KargoSim.Player
         [Tooltip("Azami hiz referansi (km/sa). VehicleDefinition ile eslesmeli.")]
         [SerializeField] private float speedForMaxFovKmh = 110f;
 
+        [Header("Surucu modu (Asama 14)")]
+        [Tooltip("Kapali: arac arkasindan takip eden kamera (van). "
+                 + "Acik: gidon uzerinden surucu bakis acisi (bisiklet).")]
+        [SerializeField] private bool driverMode = false;
+
+        [Tooltip("Surucu modunda kameranin aracin yerel konumu. "
+                 + "Gidonun hemen arkasinda, kafanin hizinda.")]
+        [SerializeField] private Vector3 driverLocalOffset = new Vector3(0f, 1.25f, 0.35f);
+
         private Camera _camera;
         private Vector3 _positionVelocity;
         private float _initialLocalHeight;
+        private Vehicle.IVehicleController _vehicle;
 
         private void Awake()
         {
@@ -70,6 +80,15 @@ namespace KargoSim.Player
         public void SetTarget(Transform newTarget)
         {
             target = newTarget;
+            _vehicle = null;
+        }
+
+        /// <summary>Editor kurulum kancası: surucu modunu ayarlar.</summary>
+        public void ConfigureForSetup(bool isDriverMode, Vector3 driverOffset, Transform followTarget)
+        {
+            driverMode = isDriverMode;
+            driverLocalOffset = driverOffset;
+            if (followTarget != null) target = followTarget;
         }
 
         private void LateUpdate()
@@ -77,6 +96,22 @@ namespace KargoSim.Player
             // LateUpdate: kamera, aracin bu karedeki konumunu GORDUKTEN sonra
             // guncellenmeli. Update'de calissaydi bir kare geride kalirdi.
             if (target == null) return;
+
+            // SURUCU MODU: kamera aracin USTUNDE sabit durur, yalnizca
+            // aracin rotasyonunu takip eder. Kureyle yoldan gider gibi
+            // hissettirir; bisiklet icin uzak takip kamerasi oyuncuyu
+            // kask gorunumu yapardı.
+            if (driverMode)
+            {
+                // Konum: aracla birlikte tasinir, yumusatma YOK (gecikme
+                // surerken gider, kask hissi verir).
+                transform.position = target.TransformPoint(driverLocalOffset);
+                transform.rotation = Quaternion.Slerp(
+                    transform.rotation, target.rotation,
+                    1f - Mathf.Exp(-rotationSmoothTime * 10f * Time.deltaTime));
+                UpdateFov();
+                return;
+            }
 
             Vector3 desiredPosition = target.TransformPoint(localOffset);
             transform.position = Vector3.SmoothDamp(
@@ -95,10 +130,16 @@ namespace KargoSim.Player
         {
             if (_camera == null || !useSpeedFov) return;
 
-            var vehicle = target.GetComponentInParent<Vehicle.ArcadeVehicleController>();
-            if (vehicle == null) return;
+            // Asama 14: arac tipi degisti, sabit sinif degil SOZLESME.
+            // (Once GetComponentInParent<ArcadeVehicleController>() idi ve
+            // bisiklete baglaninca hiz FOV'u sessizce kapanirdi.)
+            if (_vehicle == null)
+            {
+                _vehicle = target.GetComponentInParent<Vehicle.IVehicleController>();
+                if (_vehicle == null) return;
+            }
 
-            float t = Mathf.Clamp01(vehicle.SpeedKmh / Mathf.Max(speedForMaxFovKmh, 1f));
+            float t = Mathf.Clamp01(_vehicle.SpeedKmh / Mathf.Max(speedForMaxFovKmh, 1f));
             float targetFov = Mathf.Lerp(baseFov, maxSpeedFov, t);
 
             // FOV'yu dogrudan atamak yerine yumusat: ani degisim sersemletir.
