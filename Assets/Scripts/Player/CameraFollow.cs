@@ -83,6 +83,16 @@ namespace KargoSim.Player
             _vehicle = null;
         }
 
+        /// <summary>
+        /// Takip edilen nesne (arac). CompositionRoot kameranin hangi
+        /// araca ait oldugunu bu ile ayirt eder.
+        ///
+        /// ASAMA 16: vanin kamerasi aracin COCUGU degil, sahne nesnesi
+        /// ("Main Camera"). Onu arac altinda aramak bulamiyordu ve
+        /// kodsayilan cozum Camera.main'e dusuyordu.
+        /// </summary>
+        public Transform Target => target;
+
         /// <summary>Editor kurulum kancası: surucu modunu ayarlar.</summary>
         public void ConfigureForSetup(bool isDriverMode, Vector3 driverOffset, Transform followTarget)
         {

@@ -87,7 +87,26 @@ namespace KargoSim.Tests
             Assert.IsTrue(hasDirectional,
                 "Yonelmis isik yok. Aydinlatma tek isiga bagli, bake edilebilir olmali.");
 
-            Assert.IsNotNull(Camera.main, "Main Camera yok ya da MainCamera etiketi atanmemis.");
+            // ASAMA 16: MainCamera etiketi oyuncunun FPS kamerasindadir.
+            //
+            // Once etiket vanin takip kamerasinda ("Main Camera") idi. O
+            // kamera hicbir zaman kapatilmadigi icin iki kamera ayni anda
+            // acik kaliyordu ve oyuncu aracinda SABIT bir goruntu
+            // goruyordu.
+            Assert.IsNotNull(Camera.main,
+                "Main Camera yok ya da MainCamera etiketi atanmemis.");
+
+            // Etiketli kamera oyuncunun kamerasi olmali. Arac kamerasi
+            // etiketliyse Camera.main araci gosterir ve oyuncu kendi
+            // kamerasini gormez.
+            var courier = UnityEngine.Object.FindFirstObjectByType<KargoSim.Player.CourierController>();
+            Assert.IsNotNull(courier, "Kurye yok.");
+            var fps = courier.GetComponentInChildren<Camera>(true);
+            Assert.IsNotNull(fps, "Kuryenin FPS kamerasi yok.");
+            Assert.AreSame(fps, Camera.main,
+                "MainCamera etiketi FPS kamerasinda olmali. Etiket arac " +
+                "kamerasinda ise Camera.main araci takip eder ve oyuncu " +
+                "kendi bakis acisini gormez.");
         }
 
         [Test]

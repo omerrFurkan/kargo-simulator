@@ -175,6 +175,10 @@ namespace KargoSim.Player
             if (driverCamera != null) vehicleCamera = driverCamera;
             vehicleController.SetDriverCamera(driverCamera);
 
+            // Arac degistiyse kamera da degismis olmali: yeni aracin
+            // kamerasi acilir, eskisi kapanir.
+            ApplyCameraState();
+
             if (_inVehicle) vehicleController.ControlsLocked = false;
         }
 
@@ -496,10 +500,46 @@ namespace KargoSim.Player
         {
             _inVehicle = true;
             SetVisible(false);
-            if (fpsCamera != null) fpsCamera.enabled = false;
-            if (vehicleCamera != null) vehicleCamera.enabled = true;
+            ApplyCameraState();
             if (vehicleController != null) vehicleController.ControlsLocked = false;
             SetCursorLocked(false);
+        }
+
+        /// <summary>
+        /// Sahnedeki TUM kameralari tarar ve SADECE o an gerekeni acar.
+        ///
+        /// ASAMA 16 - "kamera ... binince sabit" RAPORUNUN KOK NEDENI.
+        ///
+        /// Sahnede UC kamera var:
+        ///   FpsCamera  - oyuncunun ayaktaki kamerasi
+        ///   Main Camera - vanin arkasindan takip kamerasi
+        ///   BikeCamera - bisikletin gidon kamerasi
+        ///
+        /// Once EnterVehicle/ExitVehicle YALNIZCA `vehicleCamera` alanini
+        /// acip kapatiyordu. Bu alan ise sahne yuklenirken bisiklete
+        /// (yeni baslangic araci) atanmistir. VANIN kamerasi hicbir zaman
+        /// kapatilmazdi ve MainCamera etiketi tasidigi icin Surekli ACIK
+        /// kaldi.
+        ///
+        /// Sonuc: oyuncu bisiklete binince iki kamera ayni anda render
+        /// oluyordu. Unity etiketli olani (van kamerasi) tercih ediyordu.
+        /// Van depoda durdugu icin oyuncu "KAMERA SABIT" goruyordu -
+        /// oyuncunun birebir raporu.
+        ///
+        /// Cozum: kameraya degil, kurala guveniyoruz. Ayaktayken yalnizca
+        /// FPS kamerasi; arac icindeyken yalnizca o aracin kamerasi.
+        /// </summary>
+        private void ApplyCameraState()
+        {
+            Camera wanted = _inVehicle ? vehicleCamera : fpsCamera;
+            if (wanted == null) return;
+
+            var all = FindObjectsByType<Camera>(FindObjectsInactive.Include, FindObjectsSortMode.None);
+            for (int i = 0; i < all.Length; i++)
+            {
+                if (all[i] == null) continue;
+                all[i].enabled = all[i] == wanted;
+            }
         }
 
         public void ExitVehicle(Vector3 doorPosition)
@@ -518,8 +558,7 @@ namespace KargoSim.Player
                 transform.rotation = vehicleController.VehicleTransform.rotation;
 
             SetVisible(true);
-            if (fpsCamera != null) fpsCamera.enabled = true;
-            if (vehicleCamera != null) vehicleCamera.enabled = false;
+            ApplyCameraState();
             if (vehicleController != null) vehicleController.ControlsLocked = true;
 
             // KRITIK: imleci kilitlemiyorduk. Bu olmadan Look() hemen

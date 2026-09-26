@@ -159,14 +159,22 @@ namespace KargoSim.EditorTools
             carry.transform.SetParent(root.transform, false);
             carry.transform.localPosition = new Vector3(0f, TargetHeightMeters * 0.55f, 0.42f);
 
-            // --- FPS kamerasi (kafa yuksekliginde, karakterin cocugu) ---
-            // MainCamera etiketi ALMAZ: etiketli iki kamera olursa
-            // Camera.main belirsizlesir ve arac kamerasi bozulur.
-            // Ikincil kamera karaktere bagli ve sadece ayaktayken acik.
-            var fpsGo = new GameObject(FpsCameraName);
-            fpsGo.transform.SetParent(root.transform, false);
-            fpsGo.transform.localPosition = new Vector3(0f, TargetHeightMeters * 0.86f, 0f);
-            fpsGo.tag = "Untagged";
+              // --- FPS kamerasi (kafa yuksekliginde, karakterin cocugu) ---
+              // ASAMA 16: MainCamera etiketi ARTIK FPS kamerasindadir.
+              //
+              // Once etiket VANIN takip kamerasinda ("Main Camera") idi ve
+              // o kamera HICBIR zaman kapatilmiyordu. Iki kamera ayni anda
+              // acik kaldi; Unity etiketli olani tercih ettigi icin oyuncu
+              // aracinda vanin depodaki SABIT kamerasini goruyordu.
+              //
+              // MainCamera etiketi oyuncunun ASIL kamerasinda olmali: o
+              // her zaman vardir ve Camera.main daima gecerli bir referans
+              // verir. Arac kameralari ekran/iKincil kameralardir.
+              var fpsGo = new GameObject(FpsCameraName);
+              fpsGo.transform.SetParent(root.transform, false);
+              fpsGo.transform.localPosition = new Vector3(0f, TargetHeightMeters * 0.86f, 0f);
+              fpsGo.tag = "MainCamera";
+
 
             var fpsCamera = fpsGo.AddComponent<Camera>();
             fpsCamera.fieldOfView = 70f;
@@ -179,7 +187,8 @@ namespace KargoSim.EditorTools
             var so = new SerializedObject(courier);
             so.FindProperty("controller").objectReferenceValue = cc;
             so.FindProperty("fpsCamera").objectReferenceValue = fpsCamera;
-            so.FindProperty("vehicleCamera").objectReferenceValue = Camera.main;
+              so.FindProperty("vehicleCamera").objectReferenceValue = null;
+
             so.FindProperty("carryAnchor").objectReferenceValue = carry.transform;
             so.FindProperty("animator").objectReferenceValue = animator;
 
@@ -395,13 +404,17 @@ namespace KargoSim.EditorTools
             if (cameras.Length < 1)
                 problems.Append(" FPS kamerasi yok; karakter bakinca gormez.");
 
-            // Ana kamera arac takip kamerasi olmali.
-            Camera main = Camera.main;
-            if (main == null)
-                problems.Append(" MainCamera yok; arac kamera kaybolur.");
-            else if (main.GetComponentInChildren<Camera>(true) == main &&
-                     main.transform.IsChildOf(courier.transform))
-                problems.Append(" MainCamera karakterin altinda; arac kamerasi kaybolur.");
+              // Ana kamera ARAC takip kamerasi DEGIL, oyuncunun FPS
+              // kamerasi olmali (ASAMA 16). Araclara kendi kameralari
+              // CompositionRoot tarafindan SetActiveVehicle ile baglanir.
+              Camera main = Camera.main;
+              if (main == null)
+                  problems.Append(" MainCamera yok; oyun kamerasiz kalir.");
+              else if (!main.transform.IsChildOf(courier.transform))
+                  problems.Append(" MainCamera karakterin altinda degil; "
+                                  + "Camera.main arac kamerasini gosterir ve "
+                                  + "oyuncu 'kamera sabit' sanar.");
+
 
             // Animator'in varligi yetmez: modelin gercekten mesh'i olmali.
             // Referanslar atanmis ama model bos birakilmissa oyuncu

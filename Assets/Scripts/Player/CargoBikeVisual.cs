@@ -219,7 +219,18 @@ namespace KargoSim.Player
                 // Izgara kasanin icinde kalir: yatayda ortalar, derinlikte
                 // kasanin icine dogru siralanir.
                 float x = ColumnX(column, columns, pitch);
-                float z = rowCenterZ - row * pitch;
+
+                // ASAMA 16: satirlar ARKADAN one dogru doldurulur.
+                //
+                // Oyuncu "kargo merkezinde kaliyor", "kutular aracin arkasina
+                // yerlestirilmiyor" dedi. Sebep burasiydi: satirlar
+                // rowCenterZ ile ORTAYA yerlestiriliyordu, bu yuzden TEK
+                // kutu katanin on kenari (bisiklet yerel z=-0.61) duruyordu
+                // - yani arka tekerin (-0.72) ONUNDE, kasanin disinda.
+                //
+                // Simdi ilk kutu kasanin ARKA kenarindan baslar ve one
+                // dogru ilerler: tek kutu z=-1.29, kasa icinde.
+                float z = -rowCenterZ + row * pitch;
                 float y = layerBase + side * 0.5f;
 
                 CreateBox(parcel, side, new Vector3(x, y, z));

@@ -291,6 +291,12 @@ namespace KargoSim.Core
             // sozlesmeyi uyguluyor. Once GetComponent<ArcadeVehicleController>
             // yaziliyordu ve bisiklet secildiginde NULL donerdi -> kurye
             // arac baglantilari hic kurulmazdi.
+            //
+            // ONCE kameralar eslestirilir: FindVehicleCamera asagida
+            // _vehicleCameras sozlusunu okur, o da WireVehicleCameras ile
+            // dolar.
+            WireVehicleCameras(FindAllVehicles());
+
             var vehicleController = _playerVehicleTransform != null
                 ? _playerVehicleTransform.GetComponent<Vehicle.IVehicleController>()
                 : null;
@@ -615,27 +621,123 @@ namespace KargoSim.Core
         /// <summary>
         /// Araca ait surucu kamerasini bulur.
         ///
-        /// Her aracin kendi takip kamerasi vardir (van: arka takip,
-        /// bisiklet: gidon). Kameraya isaret eden bir CameraFollow
-        /// bulunur ve o kameranin Camera bileseni donulur.
+        /// ASAMA 16 - "kamera binince sabit" hatasinin ikinci yarisi.
         ///
-        /// Bulunamazsa Camera.main'e dusulur: oyun HICBIR kamera olmadan
-        /// oynanamaz, o yuzden bulamamak oyunu calisamaz yapmamali.
+        /// Arama sirasi:
+        ///   1) Aracin cocugu olan CameraFollow (bisiklet: gidon kamerasi).
+        ///   2) Sahnedeki, HEDEFI bu arac olan CameraFollow (van: "Main
+        ///      Camera" aracin cocugu DEGIL, ayri bir sahne nesnesi).
+        ///   3) hicbiri bulunamazsa null.
+        ///
+        /// ONCEDEN `return Camera.main` vardi. Bu yanlisti: etiket
+        /// degisikligiyle Camera.main oyuncunun FPS kamerasi oldu ve
+        /// araca atanacak kamera oyuncunun kamerasi olarak geri donerdi.
+        /// Oyuncu arac yerine kendi kamerasindan bakardi.
         /// </summary>
         private static Camera FindVehicleCamera(Vehicle.IVehicleController vehicle)
         {
-            if (vehicle != null && vehicle.VehicleTransform != null)
+            return _vehicleCameras.TryGetValue(vehicle, out var cam) ? cam : null;
+        }
+
+        /// <summary>
+        /// Her araci KENDI kamerasiyla eslestirir ve kamera hedefini baglar.
+        ///
+        /// ASAMA 16 - "kamera binince sabit" hatasinin ASIL kok nedeni.
+        ///
+        /// Sahnede iki CameraFollow vardi:
+        ///   - Bisikletinki prefabin icinde, hedefi dogru atanmis.
+        ///   - Vaninki ayri bir SAHNE nesnesi ve `target: {fileID: 0}`,
+        ///     yani HICBIR araca bagli degil.
+        ///
+        /// Baglanmadigi icin van kamerasi dunnya sabit bir noktada duruyordu
+        /// ve MainCamera etiketi tasidigi icin her zaman ekranda oluyordu.
+        /// Oyuncu aracinda donen degil, DEGISMEYEN bir goruntu goruyordu.
+        ///
+        /// Eslestirme sirasi:
+        ///   1) Hedefi zaten bu arac olan kamera.
+        ///   2) Aracin cocugu olan kamera.
+        ///   3) HedeFI BOS olan kamera (van) -> araca baglanir.
+        /// </summary>
+        private static void WireVehicleCameras(List<Vehicle.IVehicleController> vehicles)
+        {
+            _vehicleCameras.Clear();
+
+            var follows = FindObjectsByType<Player.CameraFollow>(
+                FindObjectsInactive.Include, FindObjectsSortMode.None);
+            var claimed = new HashSet<Player.CameraFollow>();
+
+            // 1) Hedefi belli olanlar.
+            foreach (var v in vehicles)
             {
-                var follows = vehicle.VehicleTransform.GetComponentsInChildren<Player.CameraFollow>(true);
+                if (v == null || v.VehicleTransform == null) continue;
                 for (int i = 0; i < follows.Length; i++)
                 {
-                    var cam = follows[i].GetComponent<Camera>();
-                    if (cam != null) return cam;
+                    if (claimed.Contains(follows[i]) || follows[i].Target == null) continue;
+                    if (follows[i].Target != v.VehicleTransform) continue;
+
+                    var c = follows[i].GetComponent<Camera>();
+                    if (c != null) { _vehicleCameras[v] = c; claimed.Add(follows[i]); }
+                    break;
                 }
             }
 
-            return Camera.main;
+            // 2) Aracin cocugu olanlar (bisiklet).
+            foreach (var v in vehicles)
+            {
+                if (v == null || v.VehicleTransform == null) continue;
+                if (_vehicleCameras.ContainsKey(v)) continue;
+
+                var own = v.VehicleTransform.GetComponentsInChildren<Player.CameraFollow>(true);
+                for (int i = 0; i < own.Length; i++)
+                {
+                    var c = own[i].GetComponent<Camera>();
+                    if (c == null) continue;
+                    _vehicleCameras[v] = c;
+                    claimed.Add(own[i]);
+                    break;
+                }
+            }
+
+            // 3) HedeFI BOS olanlar -> araclara baglanir (van).
+            var spare = new List<Player.CameraFollow>();
+            for (int i = 0; i < follows.Length; i++)
+                if (!claimed.Contains(follows[i]) && follows[i].Target == null)
+                    spare.Add(follows[i]);
+
+            int spareIndex = 0;
+            foreach (var v in vehicles)
+            {
+                if (v == null || v.VehicleTransform == null) continue;
+                if (_vehicleCameras.ContainsKey(v)) continue;
+                if (spareIndex >= spare.Count) break;
+
+                var follow = spare[spareIndex++];
+                var cam = follow.GetComponent<Camera>();
+                if (cam == null) continue;
+
+                follow.SetTarget(v.VehicleTransform);
+                _vehicleCameras[v] = cam;
+                claimed.Add(follow);
+
+                // Uyari oturumda BIR kez: her sahne yuklenisinde tekrarlamak
+                // (testlerde 40+ kez) logu okunamaz hale getiriyor.
+                if (!_warnedUnwiredCamera)
+                {
+                    _warnedUnwiredCamera = true;
+                    Debug.LogWarning("[GameCompositionRoot] '" + cam.name +
+                                     "' kamerasi hicbir araca bagli degildi; " +
+                                     "simdi araca baglandi. Bu kamera daha " +
+                                     "once SABIT duruyordu. Kalici cozum: " +
+                                     "sahnede bu kameranin CameraFollow " +
+                                     "Target alanina araci atayin.", cam);
+                }
+            }
         }
+
+        private static bool _warnedUnwiredCamera;
+
+        private static readonly Dictionary<Vehicle.IVehicleController, Camera> _vehicleCameras =
+            new Dictionary<Vehicle.IVehicleController, Camera>();
 
         /// <summary>
         /// Kuryeyi aracin yanina, yuruyerek ulasabilecegi bir noktaya koyar.
