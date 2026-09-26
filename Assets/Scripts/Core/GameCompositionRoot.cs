@@ -315,8 +315,41 @@ namespace KargoSim.Core
             // yaklasir, F ile biner". Ayrica oyuncu ilk karede
             // bisikletini GORMEZSE arac seciminin hicbir anlami
             // kalmaz.
-            if (vehicleController != null) vehicleController.ControlsLocked = true;
+            //
+            // ASAMA 17: kilit BASLANGIC aracina degil TUM araclara
+            // konur.
+            //
+            // Oyuncu: "araca binmedim ama benim hareketler ile hareket
+            // ediyor". Sebep: yalnizca baslangictaki arac kilitleniyordu.
+            // Van kilitlenmedigi icin WASD oyuncunun yurumesinden gelen
+            // girdiyle vani suruyordu. Oyuncu hic binmeden arac gidiyordu.
+            var allVehiclesEarly = FindAllVehicles();
+            foreach (var v in allVehiclesEarly)
+                if (v != null) v.ControlsLocked = true;
+
             PlaceCourierNearVehicle(courier);
+
+            // ASAMA 17: karakter araclari ITER.
+            //
+            // Oyuncu bisiklete dogru yuruyunce bisiklet 0.52 m kayiyordu
+            // (olculdu). CharacterController, Rigidbody'li araci itiyor.
+            // Oyuncu "benim hareketler ile arac hareket ediyor" diyor ve
+            // bu yarisi de dogru.
+            //
+            // Cozum: karakter ile araclar arasindaki carpismalar kapatilir.
+            // Kargo oyununda araca yaslanmak onun icinden gecmekten
+            // iyidir; oyuncu takilip kalmaz ve arac yerinden oynamaz.
+            var courierCollider = courier.GetComponent<CharacterController>();
+            if (courierCollider != null)
+            {
+                foreach (var v in allVehiclesEarly)
+                {
+                    if (v == null || v.VehicleTransform == null) continue;
+                    var parts = v.VehicleTransform.GetComponentsInChildren<Collider>(true);
+                    for (int i = 0; i < parts.Length; i++)
+                        Physics.IgnoreCollision(courierCollider, parts[i], true);
+                }
+            }
 
             // Etkilesim noktalarini bagla
             var pile = FindFirstObjectByType<Player.ShopParcelPile>();

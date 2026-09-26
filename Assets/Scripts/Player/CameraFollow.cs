@@ -116,9 +116,27 @@ namespace KargoSim.Player
                 // Konum: aracla birlikte tasinir, yumusatma YOK (gecikme
                 // surerken gider, kask hissi verir).
                 transform.position = target.TransformPoint(driverLocalOffset);
-                transform.rotation = Quaternion.Slerp(
-                    transform.rotation, target.rotation,
-                    1f - Mathf.Exp(-rotationSmoothTime * 10f * Time.deltaTime));
+
+                // ASAMA 17 - ROSTER (yatma) MIRAS ALINMAZ.
+                //
+                // Oyuncu: "sola yaptigimda karakterin gorusu de sag sola
+                // yatiyor". Sebep tam burasiydi: kamera dogrudan
+                // target.rotation'a slerp ediliyordu ve arac fizigi yatip
+                // yattigi icikamera da yatip yatiyordu. Direksiyon
+                // kombinasyonunda 35 derece yatma olcumustuk.
+                //
+                // Cozum: yalnizca YAW (aracin nereye baktigi) ve PITCH
+                // (one/yukari egimi) alinir, ROLL atilir. Kamera daima
+                // dik durur; kask hissi korunur, bulanti olmaz.
+                //
+                // KRITIK: kamera aracin COCUGU. Dunya rotasyonu dogrudan
+                // yazilsaydi ebeveyn bir sonraki fizik adiminda yatayinca
+                // kamera da yatardi (olculdu: 35 -> 33 derece, yani
+                // duzeltme ise yaramadi). Bu yuzden hedef dunya rotasyonu
+                // ebeveynin rotasyonu TERSINE cevrilip YEREL olarak
+                // yazilir: boylece dunya acisi ne olursa olsun dik kalir.
+                Quaternion desiredWorld = UprightLookRotation(target);
+                transform.localRotation = Quaternion.Inverse(target.rotation) * desiredWorld;
                 UpdateFov();
                 return;
             }
@@ -134,6 +152,28 @@ namespace KargoSim.Player
                 transform.rotation, desiredRotation, 1f - Mathf.Exp(-rotationSmoothTime * 10f * Time.deltaTime));
 
             UpdateFov();
+        }
+
+        /// <summary>
+        /// Arac rotasyonundan ROLL'U ATAN dik bakis rotasyonu.
+        ///
+        /// Sadece yaw (aracin yonu) ve pitch (one/yukari egimi) korunur.
+        /// Boylece kamera arac yatsa da dik kalir.
+        /// </summary>
+        private static Quaternion UprightLookRotation(Transform vehicle)
+        {
+            Vector3 forward = vehicle.forward;
+            Vector3 right = Vector3.Cross(Vector3.up, forward);
+
+            // Arac neredeyse dikey duruyorsa (devrilme ani) cross paralel
+            // olur ve yon kaybolur; eski yonu kullanmak daha iyi.
+            if (right.sqrMagnitude < 0.0001f) right = vehicle.right;
+            if (right.sqrMagnitude < 0.0001f) right = Vector3.right;
+
+            right.Normalize();
+            Vector3 up = Vector3.Cross(forward, right).normalized;
+
+            return Quaternion.LookRotation(forward, up);
         }
 
         private void UpdateFov()

@@ -554,11 +554,34 @@ namespace KargoSim.Player
             }
             // Karakter aracin bakis yonune doner: ileri yon kargo
             // yukleme / kapi yonu olsun.
+            //
+            // ASAMA 17: SADECE yaw alinir. Aracin yatmasina (roll)
+            // karakter de yatiyordu ve FPS kamera da o egimde kaliyordu;
+            // oyuncu "inincede karakter ekrani o bakis acisinda takili
+            // kaliyor" dedi.
             if (vehicleController != null && vehicleController.VehicleTransform != null)
-                transform.rotation = vehicleController.VehicleTransform.rotation;
+            {
+                Vector3 facing = vehicleController.VehicleTransform.forward;
+                facing.y = 0f;
+                if (facing.sqrMagnitude > 0.0001f)
+                    transform.rotation = Quaternion.LookRotation(facing.normalized, Vector3.up);
+                else
+                    transform.rotation = Quaternion.identity;
+            }
 
             SetVisible(true);
             ApplyCameraState();
+
+            // FPS kamerasinin DUNYA rotasyonunu sifirla. Kamera karakterin
+            // cocugu; karakter yatmis olsa bile kamera eski (yatik) aciyla
+            // kaliyordu. Sifirlanmazsa oyuncu aractan inince ekran ayni
+            // egimde donmus kalir.
+            if (fpsCamera != null)
+            {
+                fpsCamera.transform.localRotation = Quaternion.identity;
+                fpsCamera.transform.localPosition = new Vector3(0f, 1.5f, 0f);
+            }
+
             if (vehicleController != null) vehicleController.ControlsLocked = true;
 
             // KRITIK: imleci kilitlemiyorduk. Bu olmadan Look() hemen
