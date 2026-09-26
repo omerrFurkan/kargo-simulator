@@ -49,8 +49,21 @@ namespace KargoSim.EditorTools
 
         // --- Arac tanimi (bisiklet vansdan kucuk ve yavas) ---
         private const float DefMass = 180f;
-        private const float DefMaxSpeed = 22f;
-        private const float DefMaxReverseSpeed = 6f;
+
+        // TUNING (Asama 14) - OLCUMLE bulundu, tahmin degil.
+        //
+        // BIRIM NOTU: `maxSpeed` motor matematiğinde m/s OLARAK
+        // kullanilir (ForwardSpeed = linearVelocity projeksiyonu, m/s).
+        // Ilk denemede 22f yazilmis ve bu 22 m/s = 79 km/h demekti;
+        // oyuncunun bisikleti "roket" gibi surmesine yol acti.
+        //
+        // OLCULEN (BicyclePhysicsMeasurements):
+        //   maxSpeed 8.5 m/s -> azami 39.4 km/h  (hedef 30, fazla hizli)
+        //   maxSpeed 6.8 m/s -> ~30 km/h hedefi
+        // Azami hiz tork egrisiyle ulasilmaz (eylemsizlik tasar), bu
+        // yuzden 6.8 secildi.
+        private const float DefMaxSpeed = 6.8f;        // m/s ≈ 24.5 km/h
+        private const float DefMaxReverseSpeed = 2.5f; // m/s ≈ 9 km/h
         private const float DefMaxSteerAngle = 38f;
         private const float DefEngineForce = 1400f;
         private const float DefBrakeForce = 1800f;
@@ -536,6 +549,30 @@ namespace KargoSim.EditorTools
             instance.transform.rotation = facing;
             Undo.RegisterCreatedObjectUndo(instance, "CargoBike");
 
+            // BASLANGIÇ ARACI (Asama 14): CompositionRoot'un playerVehicle
+            // alanini bisiklet tanimina cevir. Bu alan kargo KAPASITESINI
+            // belirler; van tanimi kalirsa oyuncu bisiklete bindiginde HUD
+            // "350 kg bos" der ve bisikletin 60 kg sinifi uygulanmaz.
+            var root = UnityEngine.Object.FindFirstObjectByType<Core.GameCompositionRoot>();
+            if (root != null)
+            {
+                var bikeDef = AssetDatabase.LoadAssetAtPath<VehicleDefinition>(VehicleDefPath);
+                if (bikeDef != null)
+                {
+                    root.SetPlayerVehicleForSetup(bikeDef);
+                    EditorUtility.SetDirty(root);
+                }
+                else
+                {
+                    Debug.LogWarning("[KargoBisiklet] Bisiklet tanimi bulunamadi: " + VehicleDefPath);
+                }
+            }
+            else
+            {
+                Debug.LogWarning("[KargoBisiklet] GameCompositionRoot bulunamadi; " +
+                                 "playerVehicle elle atanmalı.");
+            }
+
             EditorSceneManager.MarkSceneDirty(scene);
             EditorSceneManager.SaveScene(scene);
 
@@ -544,8 +581,8 @@ namespace KargoSim.EditorTools
             report.AppendLine("  sahne konumu: " + place.ToString("0.0")
                               + "  aci " + facing.eulerAngles.y.ToString("0") + " derece");
             report.AppendLine("  depo mesafe : " + distance.ToString("0.0") + " m");
-            report.AppendLine("  kamera      : BAGLANMADI (ayri kamera gerekli, "
-                              + "CompositionRoot karari)");
+            report.AppendLine("  baslangic   : EVET (playerVehicle = bisiklet tanimi)");
+            report.AppendLine("  kamera      : surucu modunda, prefab icinde");
         }
 
         /// <summary>Sahnedeki eski bisikleti siler (yoksa hicbir sey olmaz).</summary>

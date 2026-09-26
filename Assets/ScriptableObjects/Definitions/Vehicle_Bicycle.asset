@@ -14,8 +14,8 @@ MonoBehaviour:
   m_EditorClassIdentifier: KargoSim.Runtime::KargoSim.Vehicle.VehicleDefinition
   mass: 180
   centerOfMassHeight: 0.32
-  maxSpeed: 22
-  maxReverseSpeed: 6
+  maxSpeed: 6.8
+  maxReverseSpeed: 2.5
   engineForce: 1400
   handbrakeStrength: 2
   brakeForce: 1800

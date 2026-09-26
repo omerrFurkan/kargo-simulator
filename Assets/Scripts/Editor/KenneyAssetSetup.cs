@@ -5,6 +5,8 @@ using System.Text;
 using KargoSim.Player;
 using KargoSim.Vehicle;
 using UnityEditor;
+using UnityEditor.SceneManagement;
+using UnityEngine.SceneManagement;
 using UnityEngine;
 
 namespace KargoSim.EditorTools
@@ -89,6 +91,14 @@ namespace KargoSim.EditorTools
                 var host = new GameObject("MeasureHost");
                 GameObject model = (GameObject)PrefabUtility.InstantiatePrefab(prefab);
                 model.name = "M";
+
+                // Olcum araci da ayni kisitla karsi karsi: prefab
+                // instance'inin parent'i degistirilemez. Duz nesneye cevir.
+                if (PrefabUtility.IsPartOfPrefabInstance(model))
+                    PrefabUtility.UnpackPrefabInstance(
+                        model, PrefabUnpackMode.Completely,
+                        InteractionMode.AutomatedAction);
+
                 model.transform.SetParent(host.transform, false);
 
                 var names = new System.Text.StringBuilder();
@@ -247,6 +257,25 @@ namespace KargoSim.EditorTools
                 // 3) Modeli arac altina koy, olcekle ve hizala.
                 GameObject model = (GameObject)PrefabUtility.InstantiatePrefab(modelPrefab);
                 model.name = "Body_Kenney";
+
+                // DUZELTME (kritik): InstantiatePrefab bir PREFAB INSTANCE
+                // uretir ve Unity bir instance'in parent'ini DEGISTIRMEYE
+                // izin vermez: "Setting the parent of a transform which
+                // resides in a Prefab instance is not possible".
+                //
+                // Sonuc: model root'a baglanmadi ve Asama 4'teki
+                // AttachWheels icindeki `visual.SetParent(...)` de basarisiz
+                // oldu. Bu, arac prefabinin yarim kurulmasina ve
+                // SAHNEDE ARAC KALMAMASINA yol acti; CourierSetupTool
+                // "Sahnede araç yok" deyip kurulumu kesiyordu.
+                //
+                // Cozum: instance'i duz nesneye CEVIR (unpack). Prefab
+                // assetine dokunulmaz, sadece sahnedeki kopyasi acilir.
+                if (PrefabUtility.IsPartOfPrefabInstance(model))
+                    PrefabUtility.UnpackPrefabInstance(
+                        model, PrefabUnpackMode.Completely,
+                        InteractionMode.AutomatedAction);
+
                 model.transform.SetParent(root.transform, false);
                 model.transform.localPosition = Vector3.zero;
                 model.transform.localRotation = Quaternion.identity;
@@ -281,8 +310,54 @@ namespace KargoSim.EditorTools
             AssetDatabase.SaveAssets();
             AssetDatabase.Refresh();
 
+            PlaceInScene(report);
+
             Verify();
             Debug.Log("[Kargo] Kenney arac kuruldu.\n" + report);
+        }
+
+        /// <summary>
+        /// Kaydedilen arac prefabindan sahneye bir ORNEK koyar.
+        ///
+        /// DUZELTME (kritik): bu adim HICBIR ZAMAN YOKTU.
+        /// `VehiclePrefabBuilder.Build()` Kenney kiti varsa
+        /// `BuildVehicleModel()` cagirip `return` ediyordu - yani prefab
+        /// uretiliyor ama SAHNEDE ARAC OLMUYORDU. Van, yalnizca daha once
+        /// elle yerlestirilmis bir sahne kopyasi sayesinde bulunuyordu.
+        ///
+        /// Sonuc: "Kargo/0. HER SEYI KUR" calistirilinca (ya da sifirdan
+        /// kurulunca) araç kayboluyor, `CourierSetupTool` "Sahnede araç
+        /// yok" deyip kurulumu kesiyor ve oyun ACILAMIYORDU.
+        ///
+        /// Van Asama 14'te baslangic araci degil ama sahnede KALMALI
+        /// (ileride acilacak ust kademe arac).
+        /// </summary>
+        private static void PlaceInScene(StringBuilder report)
+        {
+            const string scenePath = "Assets/Scenes/Game.unity";
+
+            var prefab = AssetDatabase.LoadAssetAtPath<GameObject>(PrefabPath);
+            if (prefab == null)
+            {
+                Debug.LogError("[Kargo] Prefab bulunamadi, sahneye konulamadi: " + PrefabPath);
+                return;
+            }
+
+            Scene scene = EditorSceneManager.OpenScene(scenePath, OpenSceneMode.Single);
+
+            // Eski ornegi temizle: menu tekrar calistirilabilir olmali.
+            var stale = GameObject.Find("PlayerVehicle");
+            if (stale != null) Object.DestroyImmediate(stale);
+
+            var instance = (GameObject)PrefabUtility.InstantiatePrefab(prefab);
+            instance.name = "PlayerVehicle";
+            instance.transform.position = new Vector3(0f, 0.1f, 0f);
+            instance.transform.rotation = Quaternion.identity;
+
+            EditorSceneManager.MarkSceneDirty(scene);
+            EditorSceneManager.SaveScene(scene);
+
+            report.AppendLine("  sahne ornegi : PlayerVehicle (0, 0.1, 0)");
         }
 
         // ------------------------------------------------------------------

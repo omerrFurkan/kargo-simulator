@@ -103,6 +103,13 @@ namespace KargoSim.EditorTools
             CitySetupTool.Build();
             Debug.Log("[Kargo] 9/9 sehir dekoru");
 
+            // ASAMA 14: baslangic araci bisiklet. Bu adim SADECE
+            // "once" calismali: hem prefabi (yoksa kac-kac tekerli
+            // belirsiz) hem de playerVehicle alanini (kapasite) yazar.
+            // Sonda calistigi icin diger adimlarin alanlarini EZMEZ.
+            CargoBikeSetupTool.Build();
+            Debug.Log("[Kargo] 10/10 kargo bisikleti (baslangic araci)");
+
             Debug.Log("[Kargo] === Tam kurulum bitti ===");
         }
 

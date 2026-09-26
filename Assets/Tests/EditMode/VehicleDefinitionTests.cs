@@ -62,9 +62,7 @@ namespace KargoSim.Tests
         private VehicleDefinition MakeBike()
         {
             var def = ScriptableObject.CreateInstance<VehicleDefinition>();
-            def.mass = BikeMass;
-            def.maxSpeed = 22f;
-            def.maxReverseSpeed = 6f;
+            def.mass = 180f;
             def.maxSteerAngle = 38f;
             def.engineForce = 1400f;
             def.brakeForce = 1800f;
@@ -78,6 +76,14 @@ namespace KargoSim.Tests
             def.centerOfMassHeight = BikeCenterOfMassHeight;
             def.lateralGrip = 8f;
             def.downforce = 0f;
+
+            // TUNED (Asama 14): 22f = 22 m/s = 79 km/h idi, kargo bisikleti
+            // icin cok hizliydi. Olcum: 8.5 m/s -> 39.4 km/h,
+            // 6.8 m/s -> 33 km/h. Motor matematiği maxSpeed'i m/s olarak
+            // kullanir (ForwardSpeed = linearVelocity projeksiyonu).
+            def.maxSpeed = 6.8f;          // m/s = 24.5 km/h
+            def.maxReverseSpeed = 2.5f;   // m/s = 9 km/h
+
             _assets.Add(def);
             return def;
         }

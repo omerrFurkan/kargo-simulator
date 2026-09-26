@@ -44,10 +44,10 @@ namespace KargoSim.Vehicle
         [SerializeField] private float brakeResponse = 14f;
 
         [Header("Kararlilik (bisiklet)")]
-        [Tooltip("Yan devrilmeyi engelleyen kuvvet. Bisiklette dusuk tutulur: "
-                 + "yuksek deger araci yapistirir, oyuncu ucramaz.")]
-        [SerializeField] private float antiRollStrength = 6f;
-        [SerializeField] private float uprightStrength = 3f;
+        [Tooltip("Yan devrilmeyi engelleyen kuvvet. Bisiklette dusuk "
+                 + "tutulur: yuksek deger araci yapistirir, oyuncu ucramaz.")]
+        [SerializeField] private float antiRollStrength = 60f;
+        [SerializeField] private float uprightStrength = 25f;
 
         [Header("Fizik")]
         [SerializeField] private VehicleDefinition definition;
@@ -60,6 +60,45 @@ namespace KargoSim.Vehicle
         private Vector3 _spawnPoint;
         private Quaternion _spawnRotation;
         private bool _spawnCaptured;
+
+        // ------------------------------------------------------------------
+        // Test girdi kancası
+        // ------------------------------------------------------------------
+
+        private bool _useTestInput;
+        private float _testVertical;
+        private float _testHorizontal;
+        private float _testHandbrake;
+        private float _testReverseBrake;
+
+        /// <summary>
+        /// Girdiyi elle besler (yalnizca TEST).
+        ///
+        /// NEDEN GEREKLI: <c>FixedUpdate</c> girdiyi <c>Input.GetAxis</c>
+        /// ile okuyor. PlayMode test kosucusunda klavyeye basmak
+        /// MUMKUN DEGIL, dolayisiyla testler fizik motorunu calistirsa
+        /// bile torku sifirdan baslatirdi.
+        ///
+        /// ONCEDEN NE OLUYORDU: test, fizik adimindan hemen once tekerlere
+        /// dogrudan motorTorque yaziyordu; ama Unity hemen ardindan
+        /// controller'in FixedUpdate'ini cagirip torku yine sifirliyordu.
+        /// Test "bisiklet gaz vermiyor" OLGUNU OLCEMEYI basaramiyordu.
+        ///
+        /// Bu kanca ile test GERCEK yolu surer: FixedUpdate -> ReadInput ->
+        /// tork/fren/direksiyon, klavyeyle ayni kod.
+        /// </summary>
+        public void SetTestInput(float vertical, float horizontal,
+                                 float handbrake, float reverseBrake)
+        {
+            _useTestInput = true;
+            _testVertical = vertical;
+            _testHorizontal = horizontal;
+            _testHandbrake = handbrake;
+            _testReverseBrake = reverseBrake;
+        }
+
+        /// <summary>Test kancasini kapatir (klavyeye doner).</summary>
+        public void ClearTestInput() => _useTestInput = false;
 
         // ------------------------------------------------------------------
         // IVehicleController
@@ -135,6 +174,12 @@ namespace KargoSim.Vehicle
                 // oyuncu onu surmedi.
                 ReadInput(0f, 0f, 0f, 0f);
             }
+            else if (_useTestInput)
+            {
+                // Test kancası: gerçek fizik yolu, sahte girdi.
+                ReadInput(_testVertical, _testHorizontal,
+                          _testHandbrake, _testReverseBrake);
+            }
             else
             {
                 ReadInput(Input.GetAxis("Vertical"),
@@ -178,24 +223,36 @@ namespace KargoSim.Vehicle
 
             if (frontWheel != null) frontWheel.motorTorque = motor;
 
-            // FREN: throttle yonunun karsi yonu fren. El freni
-            // (Space) tum tekerlere tam guc.
+            // FREN: throttle'ı ISARETLİ gönder (ArcadeVehicleController ile
+            // ayni). Statik yardimci, throttle ile hiz aynı işaretliyse
+            // "fren yok, motor kazansin" diye erken çıkar.
+            //
+            // DUZELTME (kritik hata): burada `-_throttleSmooth`
+            // gonderiliyordu. Bu, throttle ile hizi zit isaretli
+            // yapiyordu ve yardimci her zaman TAM FREN donuyordu:
+            //   gaz 1400 Nm  +  fren 1800 Nm  =  fren kazanir
+            // Bisiklet hic hareket etmiyordu (0 km/h) ve oyuncu "W
+            // calismiyor" diyordu.
             float brake = ArcadeVehicleController.ComputeBrakeTorque(
-                -_throttleSmooth, fwd, definition.brakeForce, _brakeSmooth > 0.5f);
+                _throttleSmooth, fwd, definition.brakeForce, _brakeSmooth > 0.5f);
 
-            // Geri gitmek: hizliyken S fren, durunca geri vitese gecer.
-            if (reverseBrake > 0.5f && fwd > 0.5f) brake *= 2f;
-
-            ApplyToWheel(frontWheel, brake);
-            ApplyToWheel(rearLeft, brake);
-            ApplyToWheel(rearRight, brake);
+            // Fren TUM tekerlere. Motor torku SADECE on tekerde kalir:
+            // arka tekerler cekilmez (bisiklet arkadan itilir).
+            //
+            // DUZELTME (kritik hata): ApplyToWheel once motorTorque'u da
+            // sifirlardi ve ON TEKERLE DE cagriliyordu. Yani gaz torku
+            // atilip hemen siliniyordu - bisiklet hic hareket etmiyordu
+            // (0 km/h). Artik yalnizca fren yazilir; motoru ReadInput
+            // yazdi ve bir daha degistirilmez.
+            ApplyBrake(frontWheel, brake);
+            ApplyBrake(rearLeft, brake);
+            ApplyBrake(rearRight, brake);
         }
 
-        private static void ApplyToWheel(WheelCollider w, float brake)
+        private static void ApplyBrake(WheelCollider w, float brake)
         {
             if (w == null) return;
             w.brakeTorque = brake;
-            if (w.motorTorque != 0f) w.motorTorque = 0f;
         }
 
         /// <summary>

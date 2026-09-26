@@ -119,8 +119,22 @@ namespace KargoSim.Core
         /// </summary>
         private Transform FindPlayerVehicle()
         {
+            // ASAMA 14: BASLANGIC ARACI BISIKLET.
+            //
+            // Oyuncu ilk oyununa bisikletle baslar (brief sira haritasi:
+            // bisiklet -> motor -> arac). Van sahnede KALIR ve ileride
+            // acilabilecek ust kademe arac olarak korunur; sadece baslangic
+            // araci degisti.
+            //
+            // Neden "once" sirasi: ikisi de varsayilan olarak bulunabilir
+            // ve yalnizca "bir arac bul" demek belirsiz olurdu.
+            var bike = FindAnyObjectByType<Vehicle.BicycleController>();
+            if (bike != null) return bike.transform;
+
             var vehicle = FindAnyObjectByType<Vehicle.ArcadeVehicleController>();
-            return vehicle != null ? vehicle.transform : null;
+            if (vehicle != null) return vehicle.transform;
+
+            return null;
         }
 
         /// <summary>
@@ -273,16 +287,30 @@ namespace KargoSim.Core
                 return;
             }
 
+            // Aracin tipi soylesmeden gelir: hem bisiklet hem van bu
+            // sozlesmeyi uyguluyor. Once GetComponent<ArcadeVehicleController>
+            // yaziliyordu ve bisiklet secildiginde NULL donerdi -> kurye
+            // arac baglantilari hic kurulmazdi.
             var vehicleController = _playerVehicleTransform != null
-                ? _playerVehicleTransform.GetComponent<Vehicle.ArcadeVehicleController>()
+                ? _playerVehicleTransform.GetComponent<Vehicle.IVehicleController>()
                 : null;
 
-            Camera vehicleCamera = Camera.main;
+            // Kameranin araca ait olanini bul (iki arac = iki kamera).
+            Camera vehicleCamera = FindVehicleCamera(vehicleController);
 
             var fpsCamera = courier.GetComponentInChildren<Camera>(true);
 
             courier.Configure(null, fpsCamera, vehicleCamera, null, vehicleController);
-            courier.EnterVehicle();
+
+            // ASAMA 14: oyuncu ARTAKTA baslar.
+            //
+            // Once oyuncu arac icinde basliyordu ve hic gormeden
+            // surmeye basliyordu. Brief'in akisi: "oyuncu bisiklete
+            // yaklasir, F ile biner". Ayrica oyuncu ilk karede
+            // bisikletini GORMEZSE arac seciminin hicbir anlami
+            // kalmaz.
+            if (vehicleController != null) vehicleController.ControlsLocked = true;
+            PlaceCourierNearVehicle(courier);
 
             // Etkilesim noktalarini bagla
             var pile = FindFirstObjectByType<Player.ShopParcelPile>();
@@ -593,6 +621,45 @@ namespace KargoSim.Core
         }
 
         /// <summary>
+        /// Kuryeyi aracin yanina, yuruyerek ulasabilecegi bir noktaya koyar.
+        ///
+        /// NEDEN: oyun artik arac icinde baslamiyor. Kurye aracin tam
+        /// icinde dogsaydi ve bisikletin govdesi icinde kalirdi - hem
+        /// gorunmez hem de fiziksel olarak takili kalirdi. Yanina
+        /// birakirsak ilk is "yaklas ve F'e bas" olur.
+        ///
+        /// Aracin SAGINDAN 2.2 m: kargo noktasi genelde aracin saginda
+        /// oldugu icin oyuncu zaten o tarafta dolasir.
+        /// </summary>
+        private void PlaceCourierNearVehicle(Player.CourierController courier)
+        {
+            if (courier == null || _playerVehicleTransform == null) return;
+
+            var cc = courier.GetComponent<CharacterController>();
+            if (cc == null) return;
+
+            Vector3 right = Vector3.ProjectOnPlane(
+                _playerVehicleTransform.right, Vector3.up).normalized;
+            if (right.sqrMagnitude < 0.01f) right = Vector3.right;
+
+            Vector3 spot = _playerVehicleTransform.position + right * 2.2f;
+            spot.y = _playerVehicleTransform.position.y;
+
+            // Karakterin altinda zemin olsun; araç yokusunda birakılırsa
+            // ilk karede havada durur ve düşer.
+            if (Physics.Raycast(spot + Vector3.up * 6f, Vector3.down,
+                                 out RaycastHit hit, 30f,
+                                 ~0, QueryTriggerInteraction.Ignore))
+            {
+                spot.y = hit.point.y;
+            }
+
+            cc.enabled = false;
+            courier.transform.position = spot;
+            cc.enabled = true;
+        }
+
+        /// <summary>
         /// Ses yoneticisini hazirlar. Yoksa oyun sessiz oynanir; bu bir
         /// HATA degil (ses opsiyonel).
         /// </summary>
@@ -688,12 +755,28 @@ namespace KargoSim.Core
             // kaliyor ve "depoya don" yaziyordu.
             if (config != null && config.forceReturnToDepotOnDayEnd)
             {
-                var vehicle = FindFirstObjectByType<Vehicle.ArcadeVehicleController>();
+                // Once yalnizca ArcadeVehicleController araniyordu; baslangic
+                // araci bisiklet olunca GUN SONU ARACI GERI CAGIRILMIYORDU.
+                // Oyuncu 90 m uzakta birakiliyor ve ertesi gun kargolari
+                // kargida bekliyordu.
                 var layout = mapLayout;
-                if (vehicle != null && layout != null)
+
+                var van = FindFirstObjectByType<Vehicle.ArcadeVehicleController>();
+                if (van != null && layout != null)
                 {
-                    vehicle.SetSpawnPoint(layout.depotPosition, Quaternion.identity);
-                    vehicle.Respawn();
+                    van.SetSpawnPoint(layout.depotPosition, Quaternion.identity);
+                    van.Respawn();
+                }
+
+                if (_playerVehicleTransform != null && layout != null)
+                {
+                    var start = _playerVehicleTransform.GetComponent<Vehicle.IVehicleController>();
+                    if (start != null && start.VehicleTransform != null)
+                    {
+                        start.VehicleTransform.position = layout.depotPosition;
+                        start.VehicleTransform.rotation = Quaternion.identity;
+                        start.Respawn();
+                    }
                 }
             }
 
@@ -762,8 +845,22 @@ namespace KargoSim.Core
             uiManager = ui;
         }
 
-        public void SetCourierForSetup(Player.CourierController value)
-        {
+        /// <summary>
+        /// BASLANGIC ARACINI atar (Asama 14). Kurulum araci cagirir.
+        ///
+        /// Neden gerekli: bu alan kargo KAPASITESINI belirliyor. Van
+        /// tanimi (350 kg / 900 L) burada kalirsa oyuncu bisiklete
+        /// bindiginde HUD "350 kg bos" der ve 60 kg'a sigmayacak kutulari
+        /// kontrolsuz kabul ederdi.
+        ///
+        /// Van tanimi KORUNUR: van sahnede kalir, ileride acilabilecek ust
+        /// kademe arac olarak kullanilir. Sadece baslangicta kullanilan
+        /// tanim degisir.
+        /// </summary>
+        public void SetPlayerVehicleForSetup(Vehicle.VehicleDefinition value) =>
+            playerVehicle = value;
+
+        public void SetCourierForSetup(Player.CourierController value)        {
             courier = value;
         }
 #endif
@@ -855,7 +952,7 @@ namespace KargoSim.Core
             get
             {
                 var controller = _playerVehicleTransform != null
-                    ? _playerVehicleTransform.GetComponent<Vehicle.ArcadeVehicleController>()
+                    ? _playerVehicleTransform.GetComponent<Vehicle.IVehicleController>()
                     : null;
                 return controller != null ? controller.SpeedKmh : 0f;
             }

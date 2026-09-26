@@ -95,16 +95,35 @@ namespace KargoSim.Tests.PlayMode
             Assert.IsNotNull(door, "Adres kapisi yok (14 adet olmali).");
 
             // --- 2. Baslangic durumu ---
-            Assert.IsTrue(courier.IsInVehicle,
-                "Oyun arac icinde baslamali; kurye ayaktaymis.");
+            // ASAMA 14: oyun artik ARTAKTA basliyor. Oyuncu once bisiklete
+            // yaklasir, F ile biner. (Once arac icinde basliyordu ve
+            // oyuncu hic gormeden surmeye basliyordu.)
+            Assert.IsFalse(courier.IsInVehicle,
+                "Oyun ayakta baslamali; oyuncu aracini gorup yaklasir.");
             Assert.IsFalse(courier.IsCarrying, "Baslangicta elde kargo olmamali.");
+
+            // Baslangic araci BISIKLET olmali (brief: ilk arac kargo
+            // bisikleti; van ileride acilacak ust kademe).
+            var startBike = Object.FindFirstObjectByType<Vehicle.BicycleController>();
+            Assert.IsNotNull(startBike, "Baslangic araci (kargo bisikleti) sahnede yok.");
+            Assert.IsTrue(startBike.ControlsLocked,
+                "Oyuncu binmeden once bisiklet kilitli olmali; yoksa "
+                + "yoldan gecen bisiklet kendiliginden surulur.");
 
             int moneyBefore = root.Progress != null ? (int)root.Progress.Money : 0;
 
-            // --- 3. Aracdan in ---
+            // --- 3. Bisiklete bin ve in (akis saglamasi) ---
+            // Oyun artik ayakta basliyor. Once oyuncu bisiklete binip
+            // iniyor: boylece "F ile bin" yolu da dogrulanir ve kurye
+            // pakete baslamadan arakta kalir.
+            courier.EnterVehicle();
+            yield return null;
+            Assert.IsTrue(courier.IsInVehicle, "Araca binilmeli.");
+
             courier.ExitVehicle(vanPoint.ExitSpot());
             yield return null;
-            Assert.IsFalse(courier.IsInVehicle, "Arac birakildiktan sonra ayakta olmali.");
+            Assert.IsFalse(courier.IsInVehicle,
+                "Inince ayakta olmali; masada paketlenme arac icinde olmaz.");
 
             // --- 4. Dukkan raftan kargo al ---
             Assert.IsTrue(pile.CanInteract(courier), "Rafta kargo varken etkilesim kurulamadi.");

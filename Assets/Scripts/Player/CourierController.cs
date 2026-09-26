@@ -33,7 +33,16 @@ namespace KargoSim.Player
         [SerializeField] private Camera vehicleCamera;
         [SerializeField] private Transform carryAnchor;
         [SerializeField] private Animator animator;
-        [SerializeField] private IVehicleController vehicleController;
+        // [SerializeField] YOK, ve bu BILINCLI BIR KARAR.
+        //
+        // Unity serilestiricisi ARAYUZ tiplerini [SerializeField] ile
+        // desteklemez: alan sessizce DUSER ve So.FindProperty(...) null
+        // doner (NPE). Bu, Asama 14'te kurulum aracinin cokmesine yol
+        // acmisti.
+        //
+        // Alan zaten runtime'da atanir: Configure(...) oyunda,
+        // SetActiveVehicle(...) binmede. Serialize etmeye gerek yok.
+        private IVehicleController vehicleController;
 
         /// <summary>
         /// Su an kullanilan arac (van veya bisiklet).
@@ -88,7 +97,13 @@ namespace KargoSim.Player
 
         private float _pitch;
         private float _verticalVelocity;
-        private bool _inVehicle = true;
+        // ASAMA 14: oyun ARTAKTA baslar. Oyuncu once bisiklete yaklasir,
+        // F ile biner.
+        //
+        // Once bu alan `true` idi ve kurulum araci karakter modelini de
+        // gizliyordu: oyuncu hic gormeden arac surmeye basliyordu ve
+        // "hangi arac" secimi hicbir anlam tasimiyordu.
+        private bool _inVehicle = false;
         private bool _cursorLocked;
 
         private IInteractable _focus;
@@ -103,6 +118,16 @@ namespace KargoSim.Player
 
         /// <summary>Ayaktayken ve bir sey tasirken.</summary>
         public bool IsCarrying => _carriedParcels.Count > 0;
+
+        /// <summary>
+        /// Ayaktayken baslar. Kurulum araci karakter modelini gizli
+        /// birakir (eskiden hep arac icinde baslandigi icin); oyuncu
+        /// binmeden once modeli GORUNUR yapmamiz gerekir.
+        /// </summary>
+        private void Start()
+        {
+            if (_inVehicle == false) SetVisible(true);
+        }
 
         public int CarriedCount => _carriedParcels.Count;
 

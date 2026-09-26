@@ -69,15 +69,32 @@ namespace KargoSim.EditorTools
             var stale = GameObject.Find(RootName);
             if (stale != null) Object.DestroyImmediate(stale);
 
-            var vanObject = Object.FindFirstObjectByType<ArcadeVehicleController>();
-            if (vanObject == null)
+            // ASAMA 14: baslangic araci BISIKLET. Van ileride acilacak ust
+            // kademe arac; yani kurye kurulumu ARAC VARLIGINA BAGIMLI
+            // OLMAMALI.
+            //
+            // Once sadece ArcadeVehicleController araniyordu ve null
+            // gelince "Sahnede araç yok" deyip kurulumu KESIYORDU. Van
+            // sahnede olmadiginda (yeni kurulum, ya da van kaybolduysa)
+            // oyun acilmiyordu - oysa oyun bisikletle oynanabilir.
+            //
+            // Once bisiklete, yoksa herhangi bir araca, yoksa bos
+            // birakilir (kurye yurusebilir, yalnizca surus olmaz).
+            Vehicle.IVehicleController startVehicle = null;
+
+            var bike = Object.FindFirstObjectByType<Vehicle.BicycleController>();
+            if (bike != null) startVehicle = bike;
+            else startVehicle = Object.FindFirstObjectByType<Vehicle.ArcadeVehicleController>();
+
+            if (startVehicle == null)
             {
-                Debug.LogError("[Kargo] Sahnede araç yok. Önce arac prefabini kurun " +
-                               "(Kargo/2).");
-                return;
+                Debug.LogWarning("[Kargo] Sahnede arac yok. Kurye kurulacak ama "
+                                 + "oyuncu arac kullanamaz. Once bisikleti/vani kurun "
+                                 + "(Kargo/10, Kargo/2).");
             }
 
-            BuildCourier(vanObject.transform, material, controller, report);
+            BuildCourier(startVehicle != null ? startVehicle.VehicleTransform : null,
+                          material, controller, report);
             WireToCompositionRoot();
 
             EditorSceneManager.MarkSceneDirty(scene);
@@ -165,8 +182,21 @@ namespace KargoSim.EditorTools
             so.FindProperty("vehicleCamera").objectReferenceValue = Camera.main;
             so.FindProperty("carryAnchor").objectReferenceValue = carry.transform;
             so.FindProperty("animator").objectReferenceValue = animator;
-            so.FindProperty("vehicleController").objectReferenceValue =
-                van.GetComponent<ArcadeVehicleController>();
+
+            // ASAMA 14: arac artik IVehicleController sozlesmesi uzerinden
+            // baglanir; van da bisiklet de ayni yolu kullanir.
+            //
+            // NULL GUVENLIGI: arac yoksa alan bos kalir, kod cokmez.
+            // (Once burada null'a dogrudan '.GetComponent' deneniyordu ve
+            // arac yoksa kurulum NPE ile cokuyordu.)
+            // ASAMA 14: arac ALANI ARTIK SERILESTIRILMIYOR.
+            // CourierController.vehicleController bir ARAYUZ tipidir ve
+            // Unity [SerializeField] ile arayuzu serilestiremez; alan
+            // sessizce duser ve FindProperty null donerdi (NPE).
+            //
+            // Deger zaten runtime'da atanir: GameCompositionRoot
+            // Configure(...) cagirir, binmede SetActiveVehicle(...) gunceller.
+            // Kurulumda yazmaya gerek yok.
             so.ApplyModifiedPropertiesWithoutUndo();
             EditorUtility.SetDirty(courier);
 
