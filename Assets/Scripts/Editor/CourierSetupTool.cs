@@ -35,7 +35,7 @@ namespace KargoSim.EditorTools
         private const string RootName = "Courier";
         private const string ModelName = "Model";
         private const string CarryAnchorName = "CarryAnchor";
-        private const string VanCargoAnchorName = "CourierCargo";
+        private const string FpsCameraName = "FpsCamera";
 
         /// <summary>Karakterin hedef boyu (metre). Gercek insan ~1.75 m.</summary>
         private const float TargetHeightMeters = 1.75f;
@@ -140,44 +140,44 @@ namespace KargoSim.EditorTools
             // --- El tasma noktasi (olcek 1'de, modelden bagimsiz) ---
             var carry = new GameObject(CarryAnchorName);
             carry.transform.SetParent(root.transform, false);
-            carry.transform.localPosition = new Vector3(0f, TargetHeightMeters * 0.62f, 0.34f);
+            carry.transform.localPosition = new Vector3(0f, TargetHeightMeters * 0.55f, 0.42f);
 
-            // --- Arac ici kargo noktasi (aracla birlikte tasinmali) ---
-            // Oncekinden kalma kancalari temizle: menü tekrar
-            // calistirilirsa her seferinde bir tane daha eklenirdi
-            // ve kutular aracta ust uste birikirdi.
-            var oldAnchors = van.GetComponentsInChildren<Transform>(true);
-            for (int i = 0; i < oldAnchors.Length; i++)
-            {
-                if (oldAnchors[i].name != VanCargoAnchorName) continue;
-                if (oldAnchors[i] == van) continue;
-                Object.DestroyImmediate(oldAnchors[i].gameObject);
-            }
+            // --- FPS kamerasi (kafa yuksekliginde, karakterin cocugu) ---
+            // MainCamera etiketi ALMAZ: etiketli iki kamera olursa
+            // Camera.main belirsizlesir ve arac kamerasi bozulur.
+            // Ikincil kamera karaktere bagli ve sadece ayaktayken acik.
+            var fpsGo = new GameObject(FpsCameraName);
+            fpsGo.transform.SetParent(root.transform, false);
+            fpsGo.transform.localPosition = new Vector3(0f, TargetHeightMeters * 0.86f, 0f);
+            fpsGo.tag = "Untagged";
 
-            var vanCargo = new GameObject(VanCargoAnchorName);
-            vanCargo.transform.SetParent(van, false);
-            vanCargo.transform.localPosition = new Vector3(0f, 0.95f, -1.1f);
+            var fpsCamera = fpsGo.AddComponent<Camera>();
+            fpsCamera.fieldOfView = 70f;
+            fpsCamera.nearClipPlane = 0.05f;
+            fpsCamera.enabled = false;   // baslangicta araçta
+            fpsGo.AddComponent<AudioListener>();
 
             // --- Bilesen baglantilari ---
-            var agent = root.AddComponent<CourierAgent>();
-            var so = new SerializedObject(agent);
-            so.FindProperty("visualRoot").objectReferenceValue = model.transform;
-            so.FindProperty("carryAnchor").objectReferenceValue = carry.transform;
-            so.FindProperty("vanCargoAnchor").objectReferenceValue = vanCargo.transform;
-            so.FindProperty("animator").objectReferenceValue = animator;
+            var courier = root.AddComponent<CourierController>();
+            var so = new SerializedObject(courier);
             so.FindProperty("controller").objectReferenceValue = cc;
-            so.FindProperty("vehicleController").objectReferenceValue = van.GetComponent<ArcadeVehicleController>();
+            so.FindProperty("fpsCamera").objectReferenceValue = fpsCamera;
+            so.FindProperty("vehicleCamera").objectReferenceValue = Camera.main;
+            so.FindProperty("carryAnchor").objectReferenceValue = carry.transform;
+            so.FindProperty("animator").objectReferenceValue = animator;
+            so.FindProperty("vehicleController").objectReferenceValue =
+                van.GetComponent<ArcadeVehicleController>();
             so.ApplyModifiedPropertiesWithoutUndo();
-            EditorUtility.SetDirty(agent);
+            EditorUtility.SetDirty(courier);
 
-            // Baslangicta gizli: oyuncu arac surerken karakter gorunmez.
+            // Başlangıçta gizli: oyuncu araç sürerken karakter görünmez.
             model.SetActive(false);
             carry.SetActive(false);
 
             report.AppendLine("  model        : " + model.name + " (olcek x" +
                               model.transform.localScale.x.ToString("0.000") + ")");
             report.AppendLine("  tasma noktasi: " + carry.transform.localPosition.ToString("0.00"));
-            report.AppendLine("  arac kargo   : " + vanCargo.transform.localPosition.ToString("0.00"));
+            report.AppendLine("  fps kamera   : " + fpsGo.transform.localPosition.ToString("0.00"));
         }
 
         /// <summary>
@@ -217,7 +217,7 @@ namespace KargoSim.EditorTools
                 return;
             }
 
-            var courier = Object.FindFirstObjectByType<CourierAgent>();
+            var courier = Object.FindFirstObjectByType<CourierController>();
             if (courier == null) return;
 
             root.SetCourierForSetup(courier);
@@ -337,44 +337,49 @@ namespace KargoSim.EditorTools
         {
             var problems = new StringBuilder();
 
-            var agent = Object.FindFirstObjectByType<CourierAgent>();
-            if (agent == null)
+            var courier = Object.FindFirstObjectByType<CourierController>();
+            if (courier == null)
             {
-                Debug.LogError("[Kargo] Dogrulama: CourierAgent sahnede yok.");
+                Debug.LogError("[Kargo] Dogrulama: CourierController sahnede yok.");
                 return;
             }
 
-            var so = new SerializedObject(agent);
-            Check(so, "visualRoot", problems);
+            var so = new SerializedObject(courier);
+            Check(so, "fpsCamera", problems);
+            Check(so, "vehicleCamera", problems);
             Check(so, "carryAnchor", problems);
-            Check(so, "vanCargoAnchor", problems);
             Check(so, "animator", problems);
             Check(so, "controller", problems);
             Check(so, "vehicleController", problems);
 
-            if (agent.GetComponent<CharacterController>() == null)
+            if (courier.GetComponent<CharacterController>() == null)
                 problems.Append(" CharacterController yok; karakter zeminde durmaz.");
 
-            if (agent.GetComponentInChildren<Animator>(true) == null)
+            if (courier.GetComponentInChildren<Animator>(true) == null)
                 problems.Append(" Animator yok; karakter hareketsiz kalir.");
 
-            // Animator'in varligi yetmez: modelin gercekten mesh'i olmali.
-            // Referanslar atanmis ama model bos birakilmissa (import
-            // hatali, prefab bozulmus) oyuncu HAREKETSIZ bir siluet gorur.
-            int meshes = agent.GetComponentsInChildren<SkinnedMeshRenderer>(true).Length
-                       + agent.GetComponentsInChildren<MeshFilter>(true).Length;
-            if (meshes == 0)
-                problems.Append(" Karakter modelinde mesh yok (gorsel boş).");
+            // Iki kamera olmali: karakterin FPS kamerasi + arac takip
+            // kamerasi. Tek kamera olursa ya yururken goremezsin ya
+            // araci goremezsin.
+            Camera[] cameras = courier.GetComponentsInChildren<Camera>(true);
+            if (cameras.Length < 1)
+                problems.Append(" FPS kamerasi yok; karakter bakinca gormez.");
 
-            // Van kargo kancasi TEK olmali: menü iki kez calistirilirsa
-            // kutular ust uste birikiyordu.
-            var anchors = Object.FindObjectsByType<Transform>(FindObjectsSortMode.None);
-            int anchorCount = 0;
-            for (int i = 0; i < anchors.Length; i++)
-                if (anchors[i].name == VanCargoAnchorName) anchorCount++;
-            if (anchorCount != 1)
-                problems.Append(" '" + VanCargoAnchorName + "' sayısı " + anchorCount +
-                                ", 1 olmalı (menü iki kez çalıştırılmış).");
+            // Ana kamera arac takip kamerasi olmali.
+            Camera main = Camera.main;
+            if (main == null)
+                problems.Append(" MainCamera yok; arac kamera kaybolur.");
+            else if (main.GetComponentInChildren<Camera>(true) == main &&
+                     main.transform.IsChildOf(courier.transform))
+                problems.Append(" MainCamera karakterin altinda; arac kamerasi kaybolur.");
+
+            // Animator'in varligi yetmez: modelin gercekten mesh'i olmali.
+            // Referanslar atanmis ama model bos birakilmissa oyuncu
+            // HAREKETSIZ bir siluet gorur.
+            int meshes = courier.GetComponentsInChildren<SkinnedMeshRenderer>(true).Length
+                       + courier.GetComponentsInChildren<MeshFilter>(true).Length;
+            if (meshes == 0)
+                problems.Append(" Karakter modelinde mesh yok (gorsel bos).");
 
             report.AppendLine("  model mesh   : " + meshes + " adet");
 
@@ -383,7 +388,7 @@ namespace KargoSim.EditorTools
             else
             {
                 var rootSo = new SerializedObject(root);
-                if (rootSo.FindProperty("courierAgent").objectReferenceValue == null)
+                if (rootSo.FindProperty("courier").objectReferenceValue == null)
                     problems.Append(" Composition Root'a kurye baglanmadi.");
             }
 

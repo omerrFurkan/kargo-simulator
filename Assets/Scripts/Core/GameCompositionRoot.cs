@@ -47,9 +47,9 @@ namespace KargoSim.Core
         [SerializeField] private UI.UIManager uiManager;
 
         [Header("Kurye")]
-        [Tooltip("Kargoyu arac disinda tasayan karakter. Bos birakilirsa " +
-                 "kargo arayuzden aninda yuklenir (fiziksel tasima olmaz).")]
-        [SerializeField] private Player.CourierAgent courierAgent;
+        [Tooltip("Oyunun kontrolundeki karakter. Ayaktayken WASD + fare, " +
+                 "arac icindeyken arac girdileri kullanilir.")]
+        [SerializeField] private Player.CourierController courier;
 
         private GameClock _clock;
         private CargoSystem _cargo;
@@ -186,36 +186,81 @@ namespace KargoSim.Core
             }
 
             uiManager.Bind(_cargo, _delivery, _progress, _clock, mapLayout, _playerVehicleTransform);
-            uiManager.SetCourier(courierAgent);
+            uiManager.SetCourier(courier);
         }
 
         /// <summary>
-        /// Kurye karakterini hazirlar. Sistemler kurulduktan SONRA
-        /// cagrilir: ajan kargo ve teslimat sistemlerine ihtiyac duyar.
+        /// Kurye karakterini ve etkilesim noktalarini hazirlar.
         ///
-        /// Ajan yoksa oyun yine calisir - kargo arayuzden aninda
-        /// yuklenir, sadece fiziksel tasima olmaz.
+        /// Sistemler kurulduktan SONRA cagrilir: hem hepsi kargo ve
+        /// teslimat sistemlerine ihtiyac duyar.
+        ///
+        /// Karakter yoksa oyun yine kurulur ama yalnizca aracla
+        /// surulur; kargo arayuzden aninda yuklenir.
         /// </summary>
         private void CreateCourier()
         {
-            if (courierAgent == null)
+            if (courier == null)
             {
                 Debug.LogWarning(
-                    "[GameCompositionRoot] CourierAgent atanmadi; kargo arayuzden " +
-                    "aninda yuklenecek (karakterle tasima yok). " +
-                    "Menu: Kargo/7. Kurye Karakterini Kur", this);
+                    "[GameCompositionRoot] Courier atanmadi; yalnizca arac kullanilabilir. " +
+                    "Menu: Kargo/8. Dukkani Kur", this);
                 return;
             }
 
             if (_cargo == null || _delivery == null)
             {
-                Debug.LogWarning("[GameCompositionRoot] Kargo/teslimat sistemi yok, " +
-                                 "kurye kurulmadi.", this);
+                Debug.LogWarning("[GameCompositionRoot] Kargo/teslimat sistemi yok, kurye kurulmadi.", this);
                 return;
             }
 
-            Vector3 depot = mapLayout != null ? mapLayout.depotPosition : Vector3.zero;
-            courierAgent.Configure(_cargo, _delivery, _playerVehicleTransform, depot);
+            var vehicleController = _playerVehicleTransform != null
+                ? _playerVehicleTransform.GetComponent<Vehicle.ArcadeVehicleController>()
+                : null;
+
+            Camera vehicleCamera = Camera.main;
+
+            var fpsCamera = courier.GetComponentInChildren<Camera>(true);
+
+            courier.Configure(null, fpsCamera, vehicleCamera, null, vehicleController);
+            courier.EnterVehicle();
+
+            // Etkilesim noktalarini bagla
+            var pile = FindFirstObjectByType<Player.ShopParcelPile>();
+            if (pile != null)
+            {
+                // Rafin kutu gorunumu ada gore bulunur. Once indeksle
+                // (GetChild(1)) araniyordu; cocuk sirasi degisince
+                // raf bos kaliyordu.
+                Transform shelf = pile.transform.parent;
+                Transform boxes = shelf != null ? shelf.Find("Boxes") : null;
+                pile.Configure(_cargo, boxes);
+            }
+
+            var vanPoint = FindFirstObjectByType<Player.VanCargoPoint>();
+            if (vanPoint != null) vanPoint.Configure(_cargo, _delivery, courier, vehicleController, vehicleCamera);
+
+            var door = FindFirstObjectByType<Player.AddressDoor>();
+            if (door != null) door.Configure(_delivery, courier);
+        }
+
+        /// <summary>
+        /// Statik event kuyrugunu temizler.
+        ///
+        /// Neden: GameEvents statik bir kuyruk ve Domain Reload KAPALI.
+        /// Bu kok kapanmazsa ikinci bir kurulumda (additive sahne, ya da
+        /// Play'den cikip tekrar girip "Resume"a basmak) ayni olay IKI
+        /// kez tetiklenir: oyuncu her teslimde iki kez para kazanir ve
+        /// gun sonu istatistigi ikiye katlanir.
+        /// </summary>
+        private void OnDestroy()
+        {
+            GameEvents.DayStarted -= OnDayStarted;
+            GameEvents.DayEnded -= OnDayEnded;
+
+            // EconomyService de statik abone kuruyor; IDisposable
+            // uyguladigi icin burada birakiliyor.
+            _economy?.Dispose();
         }
 
         // ------------------------------------------------------------------
@@ -268,9 +313,9 @@ namespace KargoSim.Core
             uiManager = ui;
         }
 
-        public void SetCourierForSetup(Player.CourierAgent courier)
+        public void SetCourierForSetup(Player.CourierController value)
         {
-            courierAgent = courier;
+            courier = value;
         }
 #endif
 
@@ -302,9 +347,9 @@ namespace KargoSim.Core
                     _economy.ElapsedProvider = _delivery.Elapsed;
             }
 
-            // Kurye de ayni kareden surulur: yurume ve teslim suresi
-            // simülasyonla ayni zamanda aksin.
-            courierAgent?.Tick(dt);
+            // Kurye de ayni kareden surulur: yurume, fare bakisi ve
+            // etkilesim ayni zamanda aksin.
+            courier?.Tick(dt);
 
             // Arayuz de oyunun TEK Update cagrisindan surulur.
             if (uiManager != null) uiManager.Tick(dt);

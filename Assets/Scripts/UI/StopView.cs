@@ -23,6 +23,7 @@ namespace KargoSim.UI
 
         private readonly List<Parcel> _buffer = new List<Parcel>(8);
         private DeliveryStop _stop;
+        private bool _warnedMissingPanel;
 
         public bool IsOpen => panel != null && panel.activeSelf;
 
@@ -32,8 +33,38 @@ namespace KargoSim.UI
         public void Show(DeliveryStop stop)
         {
             _stop = stop;
-            if (panel != null) panel.SetActive(true);
+            if (!EnsurePanel()) return;
+
+            panel.SetActive(true);
             Refresh();
+        }
+
+        /// <summary>
+        /// Panel referansini garanti eder; yoksa kurulum adiyla ("Panel"
+        /// cocugu) bulunur. DepotView ile ayni neden: kurulum menusi
+        /// calistirilmamissa oyun kilitli kalmamali.
+        /// </summary>
+        private bool EnsurePanel()
+        {
+            if (panel != null) return true;
+
+            Transform child = transform.Find("Panel");
+            if (child == null)
+            {
+                if (!_warnedMissingPanel)
+                {
+                    _warnedMissingPanel = true;
+                    Debug.LogError(
+                        "[StopView] Panel bulunamadi. Menu: Kargo/6. Arayuzu Kur", this);
+                }
+                return false;
+            }
+
+            panel = child.gameObject;
+            Debug.LogWarning(
+                "[StopView] panel referansi BOS oldu; 'Panel' cocuguyla duzeltildi. " +
+                "Kalici cozum: Kargo/6. Arayuzu Kur", this);
+            return true;
         }
 
         public void Hide()

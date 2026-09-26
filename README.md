@@ -57,10 +57,10 @@ neden açılmıyor" belirsizliği kalmaz.
 ### Testler
 
 EditMode testleri formülleri ve sahne bütünlüğünü, PlayMode testleri
-gerçek fizik motorunda sürüşü doğrular (**145 + 7 test**).
+gerçek fizik motorunda sürüşü doğrular (**146 + 7 test**).
 
 ```powershell
-# EditMode (145 test)
+# EditMode (146 test)
 & "C:\Program Files\Unity\Hub\Editor\6000.3.25f1\Editor\Unity.exe" `
   -runTests -batchmode -nographics -projectPath "D:\KargoSimulator" `
   -testPlatform EditMode -testResults "D:\KargoSimulator\editmode.xml"
@@ -146,7 +146,7 @@ Assets/
 ├── Scenes/Game.unity     TEK sahne
 ├── Scripts/
 │   ├── Core/             GameConfig, GameEvents, GameClock, GameCompositionRoot
-│   ├── Player/           PlayerController, CameraFollow, PlayerProgress, CourierAgent, ParcelVisual
+│   ├── Player/           PlayerController, CameraFollow, PlayerProgress, CourierController, ParcelVisual
 │   ├── Vehicle/          VehicleDefinition, IVehicleInput, ArcadeVehicleController
 │   ├── Cargo/            Parcel, ParcelType, ParcelGenerator, CargoManifest, CargoSystem
 │   ├── Delivery/         MapLayout, DeliveryStop, RoutePlanner, DeliverySystem, StopMarker
@@ -242,11 +242,11 @@ böylece karakter neden hareket ediyor anlaşılır.
 
 `CargoSystem` ve `DeliverySystem` **saf durum mantığıdır**: kargo
 yüklendiğinde "yüklü" derler. Onlar test edilebilir ve deterministik
-kalmalıdır. `CourierAgent` ise o anın **görselini ve zamanını** yönetir:
+kalmalıdır. `CourierController` ise o anın **görselini ve zamanını** yönetir:
 yürür, animasyon oynatır, *sonra* mantık sistemine "şimdi yükle" der.
 
 Böylece fiziksel tasıma eklenirken deterministik çekirdek testleri
-hiç değişmedi. 7 yeni `CourierAgentTests` bu ayrımı korur — en
+hiç değişmedi. 7 yeni `CourierControllerTests` bu ayrımı korur — en
 önemlisi `YurumeBitmedenKargoYuklenmez`.
 
 ### Kullanılan animasyonlar
@@ -263,6 +263,50 @@ Kenney Mini Characters 32 klip içerir; yalnızca beşi kullanılır
 | `interact-right` | 0.67 s | teslim |
 
 Menü: `Kargo → 7. Kurye Karakterini Kur`
+
+---
+
+## Oynanış akışı
+
+Kurye karakteri oyunun **kontrolünde**: ayaktayken WASD + fare ile
+FPS modunda yürür, araçta aracı sürer.
+
+| Aşama | Ne yaparsın |
+|---|---|
+| **1. Dükkân** | Mavi alandaki dükkâna gir. Raftaki kutulara yaklaş, `E` ile al (aynı anda 3 kutu). |
+| **2. Aracı yükle** | Aracın arkasındaki mavi noktaya git, `E`ye bas. Kutular araca yüklenir. |
+| **3. Araca bin** | Elin boşken aracın yanında `E`ye bas. Kamera araca geçer, araç kilidi açılır. |
+| **4. Dağıt** | Adrese git, `E` ile aracı bırak, eve yürü, kapının önünde `E`ye bas. |
+
+`E`'nin ne yapacağını **hedef kendisi söyler** ve ipucu `E`'nin yanında
+yazar — "E: Kargo al (12 bekliyor)", "E: Araca koy (2 kutu)",
+"E: Araca bin", "E: Karguyu bırak (3 bekliyor)".
+
+### Neden tıklanabilir hedef sistemi
+
+`IInteractable` sözleşmesi: her hedef (`ShopParcelPile`,
+`VanCargoPoint`, `AddressDoor`) kendi ipucunu ve kendi davranışını
+bildirir. Önce `E = yükle` kuralı `UIManager` içine dağılmıştı; dört
+farklı etkileşim noktası olunca oyuncu ne yapacağını tahmin etmek
+zorunda kalıyordu. Artık `E`'ye basmadan önce ne olacağını görüyor.
+
+### Fare ve imleç
+
+Ayaktayken imleç oyuna kilitlenir (standart FPS). `Esc` imleci serbest
+bırakır ve panelleri kapatır.
+
+### Süre ne zaman başlar
+
+Kargo araca **gerçekten konduğu** anda başlar, raftan alındığında
+değil. `TryLoadParcel(id, systemTime)` gerçek yükleme anını alır;
+önce `systemTime` hiç geçirilmiyordu ve sayaç **gün başından** işliyordu
+(öğlen yüklenen kargo doğuştan "geç" sayılıyordu).
+
+### Araç neden hareket etmiyor
+
+Karakter ayaktayken araç bilerek kilitlidir (`ControlsLocked`).
+Oyuncu aynı anda hem yürüyüp hem araç kullanamaz; HUD'da
+"Arac kilitli" yazar. Karakter araca binince kilit açılır.
 
 ---
 
@@ -315,7 +359,7 @@ Detaylı oynanış: bakınız *Aşama 6 — Arayüz*.
 | `Vehicle/ArcadeVehicleController` | Fizik: motor, fren, direksiyon, yanal tutunma, downforce, takla koruması |
 | `Player/PlayerController` | Klavye → girdi |
 | `Player/CameraFollow` | Takip kamerası, hıza göre FOV |
-| `Player/CourierAgent` | Kargoyu depodan araca ve adresten araca taşıyan karakter |
+| `Player/CourierController` | Kargoyu depodan araca ve adresten araca taşıyan karakter |
 | `Editor/VehiclePrefabBuilder` | Prefab'ı üretir, sahneye koyar, doğrular |
 | `Editor/KenneyAssetSetup` | Hazır CC0 modeli (Kenney Car Kit) içe alır, aracı bu modelle üretir |
 | `Vehicle/WheelVisual` | Teker mesh'ini `WheelCollider` pozuna kilitler (dönme + direksiyon) |

@@ -18,11 +18,13 @@ namespace KargoSim.UI
         [SerializeField] private Text bodyText;
         [SerializeField] private Text hintText;
 
+        private bool _warnedMissingPanel;
+
         public bool IsOpen => panel != null && panel.activeSelf;
 
         public void Show(DaySummary summary)
         {
-            if (panel == null) return;
+            if (!EnsurePanel()) return;
 
             panel.SetActive(true);
 
@@ -50,6 +52,33 @@ namespace KargoSim.UI
         public void Hide()
         {
             if (panel != null) panel.SetActive(false);
+        }
+
+        /// <summary>
+        /// Panel referansini garanti eder; yoksa kurulum adiyla ("Panel"
+        /// cocugu) bulunur. Diğer view'lar ile ayni neden.
+        /// </summary>
+        private bool EnsurePanel()
+        {
+            if (panel != null) return true;
+
+            Transform child = transform.Find("Panel");
+            if (child == null)
+            {
+                if (!_warnedMissingPanel)
+                {
+                    _warnedMissingPanel = true;
+                    Debug.LogError(
+                        "[DaySummaryView] Panel bulunamadi. Menu: Kargo/6. Arayuzu Kur", this);
+                }
+                return false;
+            }
+
+            panel = child.gameObject;
+            Debug.LogWarning(
+                "[DaySummaryView] panel referansi BOS oldu; 'Panel' cocuguyla duzeltildi. " +
+                "Kalici cozum: Kargo/6. Arayuzu Kur", this);
+            return true;
         }
     }
 }

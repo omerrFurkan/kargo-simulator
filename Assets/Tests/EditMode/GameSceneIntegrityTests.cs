@@ -1,4 +1,5 @@
 using System.IO;
+using System.Linq;
 using KargoSim.Core;
 using KargoSim.Delivery;
 using NUnit.Framework;
@@ -164,6 +165,46 @@ namespace KargoSim.Tests
             // Canvas olmadan UI calisir mi?
             Canvas canvas = ui.GetComponent<Canvas>();
             Assert.IsNotNull(canvas, "UIManager'ın üzerinde Canvas olmalı.");
+        }
+
+        [Test]
+        public void PanelReferanslariAtanmisOlmali()
+        {
+            // Regresyon (gercek bir hatayi yakaladi): UiSetupTool'da
+            // CreatePanel() bir RectTransform donuyor, ama DepotView/StopView/
+            // DaySummaryView'in "panel" alani GameObject tipinde. SerializedObject
+            // tip uyusmazligini SESSIZCE reddedip alani null birakiyordu.
+            // Sonuc: paneller hicbir zaman acilmadi ve oyuncu "E/Tab
+            // calismiyor" sanip gercekten calismayan tuslari sucladi.
+            //
+            // Panel KOKUNUN aktif olmasi (PanelKokleriAcikKalmali) bu hatayi
+            // yakalayamaz: kok aktif olabilir ama ic panelin referansi null
+            // olabilir. Bu yuzden alanlarin degerini ayrica kontrol ediyoruz.
+            AssertAssigned<UI.DepotView>("DepotPanel", "panel");
+            AssertAssigned<UI.StopView>("StopPanel", "panel");
+            AssertAssigned<UI.DaySummaryView>("DaySummary", "panel");
+            AssertAssigned<UI.HudView>("HUD", "moneyText");
+            AssertAssigned<UI.HudView>("HUD", "hintText");
+            AssertAssigned<UI.MinimapView>("Minimap", "area");
+        }
+
+        private void AssertAssigned<T>(string gameObjectName, string fieldName)
+            where T : Component
+        {
+            T view = _scene.GetRootGameObjects()
+                .SelectMany(root => root.GetComponentsInChildren<T>(true))
+                .FirstOrDefault();
+
+            Assert.IsNotNull(view, "Sahnede '" + gameObjectName + "' üzerinde " +
+                                    typeof(T).Name + " bulunamadı.");
+
+            var so = new SerializedObject(view);
+            SerializedProperty prop = so.FindProperty(fieldName);
+            Assert.IsNotNull(prop, typeof(T).Name + "." + fieldName + " alanı bulunamadı.");
+
+            Assert.IsNotNull(prop.objectReferenceValue,
+                gameObjectName + "." + fieldName + " BOŞ — bu panel açılmaz. " +
+                "Menu: Kargo/6. Arayuzu Kur");
         }
 
         [Test]

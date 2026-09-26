@@ -25,6 +25,7 @@ namespace KargoSim.UI
         private readonly List<ParcelRowView> _rows = new List<ParcelRowView>();
         private readonly HashSet<int> _selected = new HashSet<int>();
         private CargoSystem _cargo;
+        private bool _warnedMissingPanel;
 
         public bool IsOpen => panel != null && panel.activeSelf;
 
@@ -69,11 +70,46 @@ namespace KargoSim.UI
         public void Open(CargoSystem cargo)
         {
             _cargo = cargo;
-            if (panel == null) return;
+            if (!EnsurePanel()) return;
 
             panel.SetActive(true);
             _selected.Clear();
             Refresh();
+        }
+
+        /// <summary>
+        /// Panel referansini garanti eder.
+        ///
+        /// Neden: panel alani kurulum araci tarafindan doldurulur ve
+        /// birSure arac atamayi sessizce reddedip alani null birakabilir.
+        /// Boyle bir durumda oyuncu "E/Tab calismiyor" sanip gercekten
+        /// calisan tuslari suclar; oyun da hicbir sey gostermeden kilitli
+        /// kalir. Bu yuzden referans yoksa KURULUM ADIYLA (cocuk "Panel")
+        /// bulunur: kurulum menusu calistirilmamis olsa bile oyun
+        /// oynanabilir kalir.
+        /// </summary>
+        private bool EnsurePanel()
+        {
+            if (panel != null) return true;
+
+            Transform child = transform.Find("Panel");
+            if (child == null)
+            {
+                if (!_warnedMissingPanel)
+                {
+                    _warnedMissingPanel = true;
+                    Debug.LogError(
+                        "[DepotView] Panel bulunamadi (ne referans ne de 'Panel' cocugu). " +
+                        "Menu: Kargo/6. Arayuzu Kur", this);
+                }
+                return false;
+            }
+
+            panel = child.gameObject;
+            Debug.LogWarning(
+                "[DepotView] panel referansi BOS oldu; 'Panel' cocuguyla duzeltildi. " +
+                "Kalici cozum: Kargo/6. Arayuzu Kur", this);
+            return true;
         }
 
         public void Close()
@@ -165,6 +201,27 @@ namespace KargoSim.UI
                 ParcelRowView row = Instantiate(rowPrefab, rowContainer);
                 row.gameObject.SetActive(false);
                 _rows.Add(row);
+            }
+
+            LayoutRows();
+        }
+
+        /// <summary>
+        /// Satirlari alta dogru siralar.
+        ///
+        /// KRITIK: Satirlar havuzdan Instantiate edildiginde hepsi konteynerin
+        /// TEPESINE yapisir (satir sablonunun anchor'i (0,1)-(1,1)). Yer
+        /// verilmedigi icin 12 kargo 12 satirlik TEK yigin olarak ust uste
+        /// biniyor ve okunmuyordu. Her satira index * RowHeight verilir.
+        /// </summary>
+        private void LayoutRows()
+        {
+            if (rowContainer == null) return;
+
+            for (int i = 0; i < _rows.Count; i++)
+            {
+                var rt = (RectTransform)_rows[i].transform;
+                rt.anchoredPosition = new Vector2(0f, -i * UITheme.RowHeight);
             }
         }
     }

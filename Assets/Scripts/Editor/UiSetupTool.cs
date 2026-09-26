@@ -1,3 +1,4 @@
+using System.Text;
 using KargoSim.UI;
 using UnityEditor;
 using UnityEditor.SceneManagement;
@@ -54,6 +55,9 @@ namespace KargoSim.EditorTools
             CourierSetupTool.Build();
             Debug.Log("[Kargo] 7/7 kurye karakteri");
 
+            ShopSetupTool.Build();
+            Debug.Log("[Kargo] 8/8 dukkan + etkilesim noktalari");
+
             Debug.Log("[Kargo] === Tam kurulum bitti ===");
         }
 
@@ -85,6 +89,21 @@ namespace KargoSim.EditorTools
 
             root.AddComponent<GraphicRaycaster>();
 
+            // KRITIK: Canvas kokunun pivot/anchoredPosition degerleri
+            // Screen Space - Overlay'da Unity tarafindan surulur, ama
+            // eski surumden kalan bir pivot degeri (0.5,0.5) kalirsa
+            // cocuklar anchor (0,0) olmasina ragmen canvasin ORTASINDAN
+            // baslar. "HUD ekranin ortasinda" belirtisinin kok nedeni
+            // buydu. Orijini sol altta sabitliyoruz.
+            var rootRect = (RectTransform)root.transform;
+            rootRect.pivot = Vector2.zero;
+            rootRect.anchorMin = Vector2.zero;
+            rootRect.anchorMax = Vector2.one;
+            rootRect.offsetMin = Vector2.zero;
+            rootRect.offsetMax = Vector2.zero;
+            rootRect.localScale = Vector3.one;
+            rootRect.anchoredPosition = Vector2.zero;
+
             var manager = root.AddComponent<UIManager>();
 
             HudView hud = BuildHud(root.transform, font);
@@ -95,6 +114,7 @@ namespace KargoSim.EditorTools
 
             Assign(manager, hud, depot, stop, summary, minimap);
             WireToCompositionRoot(manager);
+            ReportLayout();
 
             EditorSceneManager.MarkSceneDirty(scene);
             EditorSceneManager.SaveScene(scene);
@@ -238,13 +258,13 @@ namespace KargoSim.EditorTools
             go.transform.SetParent(parent, false);
             var view = go.AddComponent<MinimapView>();
 
-            // SOL ALT: istatistik panelinin saginda
+            // SOL UST: harita. Para bilgisi altta kalir; ikisi cakismaz.
             RectTransform panel = CreatePanel("Area", go.transform,
-                Vector2.zero, Vector2.zero, new Vector2(352f, 18f),
+                new Vector2(0f, 1f), new Vector2(0f, 1f), new Vector2(18f, -18f),
                 new Vector2(UITheme.MinimapSize, UITheme.MinimapSize));
-            panel.anchorMin = Vector2.zero;
-            panel.anchorMax = Vector2.zero;
-            panel.pivot = Vector2.zero;
+            panel.anchorMin = new Vector2(0f, 1f);
+            panel.anchorMax = new Vector2(0f, 1f);
+            panel.pivot = new Vector2(0f, 1f);
 
             // Arka plan
             Image bg = CreateImage("Background", panel, new Color(0f, 0f, 0f, 0.55f));
@@ -362,7 +382,7 @@ namespace KargoSim.EditorTools
             rowGo.SetActive(false);
 
             var so = new SerializedObject(view);
-            so.FindProperty("panel").objectReferenceValue = panel;
+            so.FindProperty("panel").objectReferenceValue = panel.gameObject;
             so.FindProperty("rowContainer").objectReferenceValue = container;
             so.FindProperty("rowPrefab").objectReferenceValue = row;
             so.FindProperty("headerText").objectReferenceValue = header;
@@ -408,7 +428,7 @@ namespace KargoSim.EditorTools
             hint.alignment = TextAnchor.LowerCenter;
 
             var so = new SerializedObject(view);
-            so.FindProperty("panel").objectReferenceValue = panel;
+            so.FindProperty("panel").objectReferenceValue = panel.gameObject;
             so.FindProperty("headerText").objectReferenceValue = header;
             so.FindProperty("listText").objectReferenceValue = list;
             so.FindProperty("hintText").objectReferenceValue = hint;
@@ -450,7 +470,7 @@ namespace KargoSim.EditorTools
             hint.alignment = TextAnchor.LowerCenter;
 
             var so = new SerializedObject(view);
-            so.FindProperty("panel").objectReferenceValue = panel;
+            so.FindProperty("panel").objectReferenceValue = panel.gameObject;
             so.FindProperty("titleText").objectReferenceValue = title;
             so.FindProperty("bodyText").objectReferenceValue = body;
             so.FindProperty("hintText").objectReferenceValue = hint;
@@ -460,6 +480,135 @@ namespace KargoSim.EditorTools
             // Kok degil, ic panel kapatilir (aciklama BuildDepot'ta).
             panel.gameObject.SetActive(false);
             return view;
+        }
+
+        // ------------------------------------------------------------------
+        // Yerlesim olcumu
+        // ------------------------------------------------------------------
+
+        /// <summary>
+        /// HUD ve minimapin GERCEKTEN nereye dustugunu sayilarla yazar.
+        ///
+        /// Neden gerekli: ekran goruntusunden "sol altta mi" diye
+        /// bakmak yaniltir (Game view olcegi, CanvasScaler esleme
+        /// modu, cozunurluk hepsi etkili). Once "panel referansi bossa"
+        /// diye sahte bir sorun aradik; aslinda yerlesim de farkli
+        /// kurulmus olabilir. Sayi olcmek tartismayi bitirir.
+        ///
+        /// Beklenen: Stats ve Area panelinin sol-alt KOSESI (0,0) tabanli
+        /// canvas koordinatlarinda yakin (18,18) ve (352,18) olmali.
+        /// </summary>
+        private static void ReportLayout()
+        {
+            var sb = new System.Text.StringBuilder();
+            sb.AppendLine("[Kargo] --- Arayuz yerlesimi ---");
+
+            // Canvas'in "rect"i yoktur; olcum Canvas'in RectTransform'undan
+            // yapilir. (rootCanvas kullanmaya calisinca None doner.)
+            Canvas canvas = Object.FindFirstObjectByType<Canvas>();
+            RectTransform canvasRect = canvas != null ? canvas.GetComponent<RectTransform>() : null;
+            if (canvasRect == null)
+            {
+                Debug.Log("[Kargo] Canvas bulunamadi, yerlesim olculemedi.");
+                return;
+            }
+
+            sb.AppendLine("  canvas boyutu : " + canvasRect.rect.size.ToString("0")
+                          + "  (ekran: " + Screen.width + "x" + Screen.height + ")");
+            sb.AppendLine("  canvas koku   : pivot=" + canvasRect.pivot.ToString("0.0")
+                          + " anchor=" + canvasRect.anchorMin.ToString("0.0")
+                          + "-" + canvasRect.anchorMax.ToString("0.0")
+                          + " olcek=" + canvasRect.localScale.ToString("0.00"));
+
+            // CIZGI: anchor degeri ile GERCEKTEN nereye dustugu ayridir.
+            // once "panel sol altta mi" diye EKRAN GORUNTUSUNE bakmak
+            // yanilticiydi; burada sayisal olceruyoruz.
+            CheckBottomLeft(sb, "Istatistik paneli", "Stats", 60f);
+            CheckBottomLeft(sb, "Minimap", "Area", 60f);
+            CheckTopLeft(sb, "Minimap", "Area", 60f);
+
+            ReportRect(sb, "Depo paneli", "Panel");
+            ReportRect(sb, "Hedef yazisi", "NextStop");
+
+            Debug.Log(sb.ToString());
+        }
+
+        /// <summary>
+        /// Bir panelin sol-alt kosesinin canvasin sol-altina yakin
+        /// olup olmadigini olcer. "Yakindir" esigi: 60 px. Buyuk
+        /// sapma varsa yerlesim bozuk demektir.
+        /// </summary>
+        private static void CheckBottomLeft(StringBuilder sb, string label, string name, float tolerance)
+        {
+            RectTransform rt = FindByName(name);
+            if (rt == null)
+            {
+                sb.AppendLine("  " + label.PadRight(20) + ": BULUNAMADI (" + name + ")");
+                return;
+            }
+
+            Vector3[] c = new Vector3[4];
+            rt.GetWorldCorners(c);
+
+            bool ok = c[0].x <= tolerance && c[0].y <= tolerance;
+            sb.AppendLine("  " + label.PadRight(20) + ": solAlt=" + c[0].ToString("0")
+                          + "  " + (ok ? "SOL ALTTA OK" : "SOL ALTTA DEGIL (yerlesim bozuk)"));
+        }
+
+        private static void CheckTopLeft(StringBuilder sb, string label, string name, float tolerance)
+        {
+            RectTransform rt = FindByName(name);
+            if (rt == null) return;
+
+            Vector3[] c = new Vector3[4];
+            rt.GetWorldCorners(c);
+
+            // Sag-ust kose x kucuk, y yuksek (canvas yuksekligine gore)
+            var canvas = Object.FindFirstObjectByType<Canvas>();
+            if (canvas == null) return;
+
+            float top = canvas.GetComponent<RectTransform>().rect.height;
+            bool ok = c[2].x <= tolerance && c[2].y >= top - tolerance;
+            sb.AppendLine("  " + label.PadRight(20) + ": sagUst=" + c[2].ToString("0")
+                          + "  " + (ok ? "SOL USTTE OK" : "SOL USTTE DEGIL (yerlesim bozuk)"));
+        }
+
+        private static RectTransform FindByName(string objectName)
+        {
+            // FindObjectsInactive.Include SART: depo/teslimat panelleri
+            // kurulumda KAPALI birakiliyor ve varsayilan arama onlari
+            // gormuyordu ("BULUNAMADI" diye raporlaniyordu).
+            foreach (RectTransform rt in Object.FindObjectsByType<RectTransform>(
+                         FindObjectsInactive.Include, FindObjectsSortMode.None))
+                if (rt.name == objectName) return rt;
+            return null;
+        }
+
+        private static void ReportRect(System.Text.StringBuilder sb, string label, string path)
+        {
+            Transform found = null;
+            foreach (Transform t in Object.FindObjectsByType<RectTransform>(FindObjectsSortMode.None))
+            {
+                if (t.name == path) { found = t; break; }
+            }
+
+            if (found == null)
+            {
+                sb.AppendLine("  " + label.PadRight(20) + ": BULUNAMADI (" + path + ")");
+                return;
+            }
+
+            RectTransform rt = (RectTransform)found;
+            Vector3[] corners = new Vector3[4];
+            rt.GetWorldCorners(corners);
+
+            sb.AppendLine("  " + label.PadRight(20)
+                          + ": solAlt=" + corners[0].ToString("0")
+                          + "  sagUst=" + corners[2].ToString("0")
+                          + "  anchor=" + rt.anchorMin.ToString("0.0")
+                          + "  pivot=" + rt.pivot.ToString("0.0")
+                          + "  pos=" + rt.anchoredPosition.ToString("0")
+                          + "  boyut=" + rt.sizeDelta.ToString("0"));
         }
 
         // ------------------------------------------------------------------
@@ -522,17 +671,41 @@ namespace KargoSim.EditorTools
             rt.anchorMin = anchorMin;
             rt.anchorMax = anchorMax;
             rt.pivot = new Vector2(anchorMin.x, anchorMax.y);
-            rt.sizeDelta = sizeDelta;
 
-            if (offset != Vector2.zero)
+            if (anchorMin == anchorMax)
             {
-                if (anchorMin == anchorMax) rt.anchoredPosition = offset;
-                else
-                {
-                    rt.offsetMin = new Vector2(offset.x, offset.y);
-                    rt.offsetMax = new Vector2(-offset.x, -offset.y);
-                }
+                // Sabit konumlu kutu: sizeDelta + anchoredPosition.
+                rt.sizeDelta = sizeDelta;
+                rt.anchoredPosition = offset;
+                return text;
             }
+
+            // ESNETILMIS BANT (orn. baslik: soldan saga, ust kenara
+            // yapisik). offset = kenardan iceri bosluk, sizeDelta = bandin
+            // YUKSEKLIGI.
+            //
+            // ONEMLI: eskide sizeDelta burada tamamen yok sayiliyordu:
+            //   offsetMin = (0, 16); offsetMax = (0, -16)  ->  yukseklik -32
+            // Baslik ve alt bilgi bu yuzden CÖKÜp üst üste biniyordu
+            // ("metinler ic ice girdi"). Simdi yukseklik korunuyor.
+            float insetX = offset.x;
+            float bottom, top;
+
+            if (anchorMin.y >= 0.5f)
+            {
+                // Ust kenara (ya da ortaya) yapisik
+                top = -offset.y;
+                bottom = top - sizeDelta.y;
+            }
+            else
+            {
+                // Alt kenara yapisik
+                bottom = offset.y;
+                top = bottom + sizeDelta.y;
+            }
+
+            rt.offsetMin = new Vector2(insetX, bottom);
+            rt.offsetMax = new Vector2(-insetX, top);
 
             return text;
         }

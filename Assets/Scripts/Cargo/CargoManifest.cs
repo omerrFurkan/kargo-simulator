@@ -59,12 +59,26 @@ namespace KargoSim.Cargo
         public void SetCapacity(CargoCapacity capacity) => Capacity = capacity;
 
         /// <summary>Depodaki listeyi degistirir (gun basinda cagrilir).</summary>
+        /// <remarks>
+        /// DUZELTME (Hata 2): Once _available.Clear() SONRA UnloadAll()
+        /// sirasi vardi. UnloadAll artik kargoyu depoya geri ekledigi icin
+        /// dunku arac kargolari yeni gunun deposuna karisip ikinci kez
+        /// yuklenebilir hale geliyordu. Dogru sira: araci kalici olarak
+        /// bosalt, sonra depoyu temizle, sonra yeni kargolari yaz.
+        /// </remarks>
         public void BeginDay(IReadOnlyList<Parcel> parcels)
         {
+            // Dunun kargolari oyun disi: yenisine dokunmadan birak.
+            DiscardLoaded();
             _available.Clear();
-            UnloadAll();
 
             if (parcels == null) return;
+
+            // Diger bir dosya bize Available listesinin KENDISINI verebilir.
+            // _available'i temizlemek o listeyi de bosaltir, yani ayni
+            // listeyi geri yazmak anlamsizdir. Bu durumda depoyu bos birak.
+            if (ReferenceEquals(parcels, _available)) return;
+
             for (int i = 0; i < parcels.Count; i++)
                 if (parcels[i] != null) _available.Add(parcels[i]);
         }
@@ -92,13 +106,62 @@ namespace KargoSim.Cargo
             return true;
         }
 
-        /// <summary>Araci bosaltir (gun sonu veya teslim hatalari).</summary>
+        /// <summary>
+        /// Arsaci bosaltir ve kargoyu DEPOYA GERI DONDURUR (Q tusu).
+        ///
+        /// DUZELTME (Hata 2): eski surumde yalnizca MarkReturnedToDepot()
+        /// cagrilip _loaded.Clear() yapiliyordu, _available listesine geri
+        /// EKLENMIYORDU. Sonuc: oyuncu Q'ya basinca kargo o gunku listeden
+        /// TAMAMEN kayboluyordu. FindById bulamiyor, depo paneli kargoyu
+        /// gostermiyor ve oyuncu ayni gun o kargoyu ikinci kez yukleyip
+        /// teslim edemiyordu - oyuncunun parasal kazanci sessizce yok oluyordu.
+        /// Artik kargo aracdan cikar, depoya yazar ve yeniden yuklenebilir.
+        /// </summary>
         public void UnloadAll()
         {
             for (int i = 0; i < _loaded.Count; i++)
-                _loaded[i]?.MarkReturnedToDepot();
+            {
+                Parcel parcel = _loaded[i];
+                if (parcel == null) continue;
+
+                parcel.MarkReturnedToDepot();
+
+                // Yukleme sirasinda depodan cikarildigi icin burada asla
+                // var olmamasi gerekir; yine de guvenlik icin tekrar eklemeyiz.
+                if (!_available.Contains(parcel)) _available.Add(parcel);
+            }
 
             _loaded.Clear();
+            ResetLoadCounters();
+        }
+
+        /// <summary>
+        /// Arsaci bosaltir ve kargoyu KALICI olarak yok eder (gun sonu basarisiz
+        /// sayimi icin).
+        ///
+        /// DUZELTME (Hata 2): UnloadAll() ile ayni isi yapmaz. Orada kargo
+        /// depoya geri doner; burada depoya hic girmez. Boylece basarisiz sayilan
+        /// kargo ayni gun yeniden yuklenip yeniden basarisiz sayilamaz.
+        ///
+        /// DIKKAT: DeliverySystem.FailRemainingParcels() bu davranisi
+        /// kullanmalidir; "Q ile bosalt" yolunun karsi istidir.
+        /// </summary>
+        public void DiscardLoaded()
+        {
+            for (int i = 0; i < _loaded.Count; i++)
+                _loaded[i]?.MarkDiscarded();
+
+            // _available listesine EKLENMEZ: kalici olarak kaybolur.
+            _loaded.Clear();
+            ResetLoadCounters();
+        }
+
+        /// <summary>
+        /// Yukleme agirlik/hacim sayaclarini sifirlar.
+        /// Iki bosaltma yolu da ayni sayaci paylasir, bu yuzden tek yerde.
+        /// </summary>
+        private void ResetLoadCounters()
+        {
             LoadedWeightKg = 0f;
             LoadedVolumeLiters = 0f;
         }
@@ -111,6 +174,12 @@ namespace KargoSim.Cargo
         /// Simulasyon saati (saniye). Kargonun teslim suresi bu andan itibaren
         /// islemeye baslar. Varsayilan deger 0 - testler ve gun ilk kargolari
         /// icin uygundur.
+        ///
+        /// DUZELTME (Hata 1) notu: 0f "gun basindan say" demektir. Gunun
+        /// gec yarisinda yuklenen kargo 0f ile yuklenirse geri sayim zaten
+        /// yarisi dolmus baslar ve kargo dogustan "gec" sayilir; odeme ve XP
+        /// dusuk kesilir. Oyun ici her yuklemede gercek simulasyon saati
+        /// gecirilmelidir.
         /// </param>
         /// <returns>Basariliysa true, sigmiyorsa false (liste degismez).</returns>
         public bool TryLoad(Parcel parcel, float systemTime = 0f)

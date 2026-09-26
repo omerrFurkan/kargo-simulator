@@ -1,3 +1,4 @@
+using System;
 using KargoSim.Cargo;
 using KargoSim.Core;
 using KargoSim.Delivery;
@@ -16,16 +17,29 @@ namespace KargoSim.Economy
     /// Update() YOK. Dayanma tek teslimde biten olaydir, surmek icin
     /// kare gerekmez.
     /// </summary>
-    public sealed class EconomyService
+    public sealed class EconomyService : IDisposable
     {
         private readonly PlayerProgress _progress;
         private readonly EconomyConfig _config;
         private readonly DeliverySystem _delivery;
-        private readonly int _currentDay;
         private float _elapsedProvider;
+
+        // DUZELTME (Hata 2): bu alan readonly idi ve hicbir yerde
+        // guncellenmiyordu. EconomyService "..., 1)" ile kuruldugu icin
+        // 2. gunden itibaren HER odeme kaydi 1. gune yaziliyordu.
+        // PlayerProgress.BeginDayStatsIfNewDay() gelen gun numarasini
+        // bekler; hep 1 gordugu icin 2. gunun istatistikleri 1. gunla
+        // ayni kovada birisiyor, gun sonu ozeti yanlis gunu gosteriyor
+        // ve oyuncunun 2. gun kazanci kayboluyordu.
+        private int _currentDay;
+        private bool _disposed;
 
         public PlayerProgress Progress => _progress;
         public EconomyConfig Config => _config;
+        public DeliverySystem Delivery => _delivery;
+
+        /// <summary>Odeme kayitlarinin yazildigi aktif gun (1'den baslar).</summary>
+        public int CurrentDay => _currentDay;
 
         /// <summary>
         /// Simülasyon saatani. Teslimat sisteminden okunur; ekonomi saati
@@ -43,13 +57,47 @@ namespace KargoSim.Economy
             _config = config;
             _progress = progress;
             _delivery = delivery;
-            _currentDay = currentDay;
+
+            // 0 veya negatif gun "bilinmiyor" demektir; istatistik kovasini
+            // bozmamak icin en az 1'e sabitlenir.
+            _currentDay = currentDay < 1 ? 1 : currentDay;
 
             GameEvents.ParcelDelivered += OnParcelDelivered;
+
+            // DUZELTME (Hata 2): gunu kendimiz de dinleriz. CompositionRoot
+            // SetDay() cagirmasa bile (veya cagirmayi unutsa bile) aktif
+            // gun odemeden once guncellenir. Abonelik kapatilabilir oldugu
+            // icin sizinti olusmaz.
+            GameEvents.DayStarted += OnDayStarted;
         }
+
+        /// <summary>
+        /// Aktif gunu gunceller. Disaridan (kayit yukleme, test, elle kurulum)
+        /// cagrilabilir; ayrica DayStarted olayindan da otomatik gelir.
+        ///
+        /// DUZELTME (Hata 2): _currentDay readonly idi, bu yuzden 2. gunden
+        /// itibaren ApplyPayout(..., day: 1) cagriliyordu.
+        /// </summary>
+        public void SetDay(int day)
+        {
+            if (_disposed) return;
+
+            // 0 gecersizdir: PlayerProgress 0'i "gun baslamadi" sayar ve
+            // her odemede istatistik kovasini yeniden acar.
+            if (day < 1) return;
+
+            _currentDay = day;
+        }
+
+        private void OnDayStarted(int day) => SetDay(day);
 
         private void OnParcelDelivered(Parcel parcel, DeliveryOutcome outcome)
         {
+            // DUZELTME (Hata 1): Dispose() cagrildiktan sonra bu abonelik
+            // GameEvents busunda kalmasin; olen bir ekonomi nesnesi
+            // odemeyi yazmaya devam etmesin.
+            if (_disposed || parcel == null) return;
+
             // Zaman bilgisi teslimat sisteminden gelir; ekonomi kendi
             // sayacini tutmaz, yoksa iki saat birbirinden sapar.
             float elapsed = _elapsedProvider;
@@ -75,6 +123,31 @@ namespace KargoSim.Economy
         public void Restore(int money, int xp, int level)
         {
             _progress.RestoreFromSave(money, xp, level);
+        }
+
+        /// <summary>
+        /// Abonelikleri kaldirir. Sahnede birden fazla ekonomi kuruldugunda
+        /// (ya da "Domain Reload: Disabled" ile EditMode'den Play'e gecildiginde)
+        /// statik event busunda OLU BIRIKEN dinleyiciler silinmez; her
+        /// kurulum bir Onceki olay zincirini daha ekler.
+        ///
+        /// DUZELTME (Hata 1): kurucuda GameEvents.ParcelDelivered += vardi,
+        /// -= HIC YOKTU. Bu yuzden:
+        ///   - ikinci bir EconomyService kurulunca bir teslim ODEMESI IKI KEZ
+        ///     yaziliyor (para ve XP katlaniyor, gun sonu sayaclari bozuluyor),
+        ///   - sahne yeniden yuklendiginde eski (olu) servis hala dinliyor ve
+        ///     oyuncunun parasini yazmaya devam ediyor.
+        /// Cagrilmasa bile etkisi olmaz: sadece dinleyiciyi bus'tan siler.
+        /// </summary>
+        public void Dispose()
+        {
+            if (_disposed) return;
+            _disposed = true;
+
+            GameEvents.ParcelDelivered -= OnParcelDelivered;
+            GameEvents.DayStarted -= OnDayStarted;
+
+            GC.SuppressFinalize(this);
         }
     }
 }

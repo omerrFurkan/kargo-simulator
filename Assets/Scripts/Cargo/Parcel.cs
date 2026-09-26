@@ -15,6 +15,12 @@ namespace KargoSim.Cargo
 
         /// <summary>Teslim edildi. Artik listeden cikar (Aşama 4).</summary>
         Delivered = 2,
+
+        /// <summary>
+        /// KALICI olarak oyundan cikarildi (gun sonu basarisiz sayimi).
+        /// Depoya geri donmez: ne yuklenebilir ne de teslim edilebilir.
+        /// </summary>
+        Discarded = 3,
     }
 
     /// <summary>
@@ -61,8 +67,16 @@ namespace KargoSim.Cargo
         /// <summary>Teslim edildi mi?</summary>
         public bool IsDelivered => State == ParcelState.Delivered;
 
-        /// <summary>Hala oyunda mi (depo, araç veya teslim)?</summary>
-        public bool IsActive => State != ParcelState.Delivered;
+        /// <summary>
+        /// Hala oyunda mi (depo, arac veya teslim)?
+        ///
+        /// DUZELTME (Discarded): Once yalnizca "Delivered" kontrol ediliyordu.
+        /// Gun sonunda basarisiz sayilan kargo depoya donmedigi icin bu
+        /// degiskene DEPO kargosu gibi gorunuyordu: oyuncu onu tekrar yukleyip
+        /// ayni gun ikinci kez teslim edebiliyor, odeme ve XP iki kez
+        /// yaziliyordu. Discarded ayrica "aktif" sayilmaz.
+        /// </summary>
+        public bool IsActive => State != ParcelState.Delivered && State != ParcelState.Discarded;
 
         /// <summary>
         /// Taban deger (TL). Oncelik carpani DAHIL DEGIL: odeme hesabini
@@ -101,6 +115,25 @@ namespace KargoSim.Cargo
         public void MarkReturnedToDepot()
         {
             State = ParcelState.WaitingInDepot;
+            TimeLoaded = -1f;
+        }
+
+        /// <summary>
+        /// KALICI olarak oyundan cikarildi. Depoya GERI DONMEZ.
+        ///
+        /// DUZELTME (Hata 2): "Q ile bosalt" icin MarkReturnedToDepot yeterli
+        /// degildi; ayni isaretleme gun sonu basarisiz sayiminda da kullanilirsa
+        /// kargo depoda kalir ve oyuncu onu tekrar yukleyip teslim edebilir.
+        /// Iki farkli yon var, bu yuzden iki farkli isaretleme olmali:
+        ///   UnloadAll()      -> depoya doner   (oyuncu iade ediyor)
+        ///   DiscardLoaded()  -> kalici kaybolur (basarisiz sayim)
+        ///
+        /// Bu metod Manifest tarafindan cagrilir. TimeLoaded sifirlanmaz:
+        /// geri sayim bu andan itibaren islemeye devam etmemeli.
+        /// </summary>
+        public void MarkDiscarded()
+        {
+            State = ParcelState.Discarded;
             TimeLoaded = -1f;
         }
 

@@ -13,7 +13,7 @@ namespace KargoSim.Delivery
     /// ve neden oldugunu bilir; odemeyi ekonomi sistemi yapar. Iki katman
     /// ayni isi yapmaz.
     ///
-    /// Update() YOK. Zamanlama dışaridan gelir: CompositionRoot her karede
+    /// Update() YOK. Zamanlama dişaridan gelir: CompositionRoot her karede
     /// <see cref="Tick"/> cagirir. Oyunun tek Update cagrisi kurali bozulmaz.
     /// </summary>
     public sealed class DeliverySystem
@@ -29,6 +29,13 @@ namespace KargoSim.Delivery
         private float _elapsed;
         private int _routeCursor;
         private DeliveryStop _currentStop;
+
+        // DUZELTME (Hata 4): aracin konumu ve "bu konum gercek mi?" bilgisi
+        // ayri tutulur. Vector3.zero hem "depodayim" hem "arac bilinmiyor"
+        // anlamina gelir; ayirt edemeden rota kurmak yalnizca (0,0,0)da
+        // dogru calisir, testlerde ve harita hizasinda yanlis sonuc verir.
+        private Vector3 _vehiclePosition;
+        private bool _hasVehiclePosition;
 
         /// <summary>Rota elle gecersersilestirilir (teslim sonrasi vs.).</summary>
         private bool _dirty = true;
@@ -154,12 +161,32 @@ namespace KargoSim.Delivery
 
         private void RebuildRoute()
         {
-            Vector3 start = _layout != null ? _layout.depotPosition : Vector3.zero;
+            Vector3 start = RouteStartPosition();
             _route.Clear();
             _route.AddRange(RoutePlanner.OrderByNearestNeighbour(start, _stops));
             _routeCursor = 0;
             _currentStop = null;
             GameEvents.RaiseRouteChanged();
+        }
+
+        /// <summary>
+        /// Rotanin baslangic noktasi.
+        ///
+        /// DUZELTME (Hata 4): burada daima _layout.depotPosition kullaniliyordu.
+        /// Rota her teslimden sonra yeniden kuruldugu icin (blokaj durumu)
+        /// arac 3. adresteyken teslim yapildiginda siralama BASTAN, yani
+        /// depoya gore hesaplaniyordu. Oyuncu 4. adrese gitmek isterken
+        /// "1. adrese don" emri aliyor, HUD'daki "Sonraki" ve minimap cizgisi
+        /// zipliyor, kalan mesafe anlami kayboluyordu.
+        ///
+        /// Dogru baslangic aracin O ANKI konumudur: zaten oradayiz, dolayisiyla
+        /// en yakin durak listede ilk olmali. Arac hic bilinmiyorsa (ilk Tick'ten
+        /// once, test, sunucu) depoya dusulur - onceki davranis.
+        /// </summary>
+        private Vector3 RouteStartPosition()
+        {
+            if (_hasVehiclePosition) return _vehiclePosition;
+            return _layout != null ? _layout.depotPosition : Vector3.zero;
         }
 
         private DeliveryStop FindStop(int destinationId)
@@ -201,8 +228,20 @@ namespace KargoSim.Delivery
         /// <summary>
         /// Aracin dunyada bulundugu konum. CompositionRoot her karede set eder;
         /// teslimat sistemi araci tanimaz, sadece konumu okur.
+        ///
+        /// DUZELTME (Hata 4): setter ayrica "konum biliniyor" bayragini
+        /// kaldirir. Boylece rota, arac taniniyorsa O ANKII konumdan,
+        /// taninmiyorsa depodan baslatilir. Imza (get/set) ayni kaldi.
         /// </summary>
-        public Vector3 VehiclePosition { get; set; }
+        public Vector3 VehiclePosition
+        {
+            get => _vehiclePosition;
+            set
+            {
+                _vehiclePosition = value;
+                _hasVehiclePosition = true;
+            }
+        }
 
         /// <summary>
         /// Su anki duraktaki bir kargoyu teslim eder.
@@ -210,7 +249,8 @@ namespace KargoSim.Delivery
         /// <returns>Sonuc; null ise kargo teslim edilemedi.</returns>
         public DeliveryOutcome? TryDeliver(int parcelId)
         {
-            if (_currentStop == null) return null;
+            DeliveryStop stop = _currentStop;
+            if (stop == null) return null;
 
             Parcel parcel = FindParcel(parcelId);
             if (parcel == null) return null;
@@ -219,15 +259,36 @@ namespace KargoSim.Delivery
                 ? DeliveryOutcome.Late
                 : DeliveryOutcome.Success;
 
-            // Kargoyu once listeden cikar: teslim edilen kargo arac uzerinde
-            // kalmamali. Aksi halde yeni rota kuruldugunda tekrar gidilirdi.
-            _cargo.Manifest.MarkDelivered(parcel);
+            // Duragin kalan kargo sayaci once duser (rotada ilerleme icin).
+            // Kargonun kendi durumuna dokunmaz.
+            stop.MarkParcelDelivered(parcel);
 
-            _currentStop.MarkParcelDelivered(parcel);
-            GameEvents.RaiseParcelDelivered(parcel, outcome);
+            // DUZELTME (Hata 5): olay, kargonun durumu DEGISMEDEN once
+            // yayilir. Once _cargo.Manifest.MarkDelivered(parcel) cagriliyordu,
+            // o da parcel.State'i Delivered yapip listeden cikaruyordu;
+            // EconomyService -> PayoutCalculator.RemainingRatio() parcayi
+            // okudugunda IsLoaded zaten false olmus ve "1f dondur" dalina
+            // dusuyordu. Sonuc: her teslim %100 kalan sure gibi gorunuyor,
+            // EconomyConfig.earlyBonusThreshold ayari HIC kullanilmiyor ve
+            // zamaninda teslim eden kurye erken teslim bahsini alamiyordu.
+            // Simdi dinleyici kargoyu hala arac uzerinde, gercek kalan
+            // suresiyle gorur.
+            //
+            // Bir dinleyici istisna atarsa kargonun durumu yine de
+            // tutarli kalsin diye finally kullanilir.
+            try
+            {
+                GameEvents.RaiseParcelDelivered(parcel, outcome);
+            }
+            finally
+            {
+                // Kargoyu listeden cikar: teslim edilen kargo arac uzerinde
+                // kalmamali. Aksi halde yeni rota kuruldugunda tekrar gidilirdi.
+                _cargo.Manifest.MarkDelivered(parcel);
+            }
 
             // Bu duraktaki tum kargolar bittiyse rotada ilerle.
-            if (_currentStop.IsCompleted)
+            if (stop.IsCompleted)
             {
                 _routeCursor++;
                 _currentStop = null;
@@ -242,6 +303,14 @@ namespace KargoSim.Delivery
         /// <summary>
         /// Gun sonunda teslim edilmemis kargolari basarisiz sayar.
         /// (Teslimat teslimi de kargoyu listeden cikarir.)
+        ///
+        /// DUZELTME (Hata 3): burada _cargo.UnloadVehicle() cagriliyordu; o
+        /// yol kargoyu DEPOYA GERI GONDURUR. Gun sonu basarisiz sayilan kargo
+        /// oyuncuya geri donmustu: depoda tekrar gorunuyor, ertesi gun yeniden
+        /// yuklenip ayni kargo ikinci kez basarisiz sayilabiliyor ve gun sonu
+        /// ozetindeki "basarisiz" sayisi oyuncunun gercek kaybini yansitmiyordu.
+        /// Dogru yol DiscardVehicle(): arac bosalir, kargo KALICI olarak yok olur
+        /// (Q ile bosaltmanin tam zidi).
         /// </summary>
         public int FailRemainingParcels()
         {
@@ -249,16 +318,23 @@ namespace KargoSim.Delivery
             IReadOnlyList<Parcel> loaded = _cargo?.Manifest?.Loaded;
             if (loaded == null) return 0;
 
-            for (int i = 0; i < loaded.Count; i++)
+            // Olay her kargo icin yayildigi ve dinleyici bu sirada araci
+            // degistirebilir; canli listeyi indekslemek gun sonunda
+            // IndexOutOfRange riski demektir. Tek seferlik kopya aliyoruz
+            // (gunde bir kez, ihmal edilebilir maliyet).
+            var snapshot = new List<Parcel>(loaded);
+            for (int i = 0; i < snapshot.Count; i++)
             {
-                Parcel parcel = loaded[i];
+                Parcel parcel = snapshot[i];
                 if (parcel == null) continue;
 
+                // Kargo henuz aracda: dinleyici (ekonomi) gercek kalan
+                // sureyi okuyabilir. Basarisiz odemede bahsis zaten olusmaz.
                 GameEvents.RaiseParcelDelivered(parcel, DeliveryOutcome.Failed);
                 failed++;
             }
 
-            _cargo.UnloadVehicle();
+            _cargo.DiscardVehicle();
             BeginDay();
             return failed;
         }
