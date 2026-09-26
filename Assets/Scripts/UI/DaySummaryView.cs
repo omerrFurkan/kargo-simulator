@@ -46,7 +46,7 @@ namespace KargoSim.UI
             }
 
             if (hintText != null)
-                hintText.text = "Tab: yeni gune basla";
+                hintText.text = "E: yeni gune basla";
         }
 
         public void Hide()

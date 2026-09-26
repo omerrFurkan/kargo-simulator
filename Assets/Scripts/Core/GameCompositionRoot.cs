@@ -57,6 +57,7 @@ namespace KargoSim.Core
         private Economy.EconomyService _economy;
         private Player.PlayerProgress _progress;
         private Transform _playerVehicleTransform;
+        private bool _playerPaused;
 
         public GameConfig Config => config;
         public GameClock Clock => _clock;
@@ -344,6 +345,31 @@ namespace KargoSim.Core
             // yuzden OnDayStarted tetiklenir ve kargolar uretilir.
             GameEvents.RaiseDayStarted(_clock.Day);
             GameEvents.RaiseDayProgressChanged(_clock.DayProgress, _clock.HourOfDay);
+        }
+
+        /// <summary>
+        /// Oyuncu baska bir pencereye gecince (Alt-Tab) oyun DURUR.
+        /// Ayar vardi ama HICBIR YERDE okunmuyordu: oyuncu baska
+        /// isine bakinca gun saati isiyordu.
+        ///
+        /// Neden OnApplicationFocus ve her karede Application.isFocused
+        /// degil: batchmode'da isFocused HER ZAMAN false'dur. Her karede
+        /// kontrol edilirse oyun teste kalici donuyor ve teslimat
+        /// sistemi hic islemiyor. Unity odak degisimini YALNIZCA geri
+        /// cagirir; headless ortamda hic cagrilmaz.
+        /// </summary>
+        private void OnApplicationFocus(bool hasFocus)
+        {
+            if (config == null || !config.pauseClockOnFocusLoss) return;
+            _clock?.SetPaused(!hasFocus || _playerPaused);
+        }
+
+        /// <summary>Oyunun duraklatma durumu (odak kaybinda korunur).</summary>
+        public void SetPlayerPaused(bool paused)
+        {
+            _playerPaused = paused;
+            bool lostFocus = !Application.isFocused;
+            _clock?.SetPaused(paused || (config != null && config.pauseClockOnFocusLoss && lostFocus));
         }
 
         private void Update()

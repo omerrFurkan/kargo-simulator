@@ -111,9 +111,15 @@ namespace KargoSim.UI
             }
 
             if (hintText != null)
+            {
+                // Bu panel ARACTA acilir ve teslimat ARACTA yapilmaz:
+                // oyuncu F ile araci birakip eve yurumeli, kapida E
+                // basmali. Once "E: TESLIM ET" yaziyordu; oyuncu
+                // E'ye basinca hicbir sey olmuyordu.
                 hintText.text = _buffer.Count > 0
-                    ? "E: TESLIM ET"
-                    : "Tamamlandi. Tab: devam et";
+                    ? "F: araci birak ve kargoyu eve gotur"
+                    : "Tamamlandi.";
+            }
         }
     }
 }
