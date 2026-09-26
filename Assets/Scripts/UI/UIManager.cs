@@ -251,11 +251,10 @@ namespace KargoSim.UI
                 return;
             }
 
-            _courier.EnterVehicle();
+            _vanPoint.Board(_courier);
         }
 
-        public void SetVanPoint(Player.VanCargoPoint point)
-        {
+        public void SetVanPoint(Player.VanCargoPoint point)        {
             _vanPoint = point;
         }
 

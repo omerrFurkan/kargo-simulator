@@ -46,7 +46,13 @@ namespace KargoSim.Player
                 if (_courier.IsCarrying)
                     action = "E: Araca koy (" + _courier.CarriedCount + " kutu)";
                 else if (_cargo != null && _cargo.Manifest.LoadedCount > 0)
-                    action = "E: Kargo al (" + _cargo.Manifest.LoadedCount + " aracda)";
+                {
+                    // Hangi adrese ait oldugunu SOYLE: oyuncu kutuyu
+                    // alip kapida "bu adrese ait kargo yok" demesini
+                    // yasamamali.
+                    string where = HasCargoForCurrentStop() ? "bu adres icin" : "aracdan";
+                    action = "E: Kargo al (" + _cargo.Manifest.LoadedCount + " aracda, " + where + ")";
+                }
                 else
                     action = "";
 
@@ -77,7 +83,7 @@ namespace KargoSim.Player
                 return;
             }
 
-            BoardVehicle(courier);
+            Board(courier);
         }
 
         /// <summary>
@@ -88,28 +94,79 @@ namespace KargoSim.Player
         /// birakip eve yuruyor, kapida "kargoyu birak" dediginde eli
         /// BOS oluyor ve oyun hic para kazanamiyordu.
         ///
+        /// ONCE BULUNAN ADRESIN KARGOSU ALINIR. Rastgele bir kutu
+        /// secmek oyuncuyu yanlis kapinin onune gonderiyordu; kapi
+        /// "bu adrese ait kargo yok" deyip etkilesimi reddediyor ve
+        /// oyuncu ne yapacagini bilemiyordu. Adres biliniyorsa dogru
+        /// kutu secilir; bilinmiyorsa (depoda) herhangi biri.
+        ///
         /// Kargo sistemde "yuklendi" olarak kalir; gorsel olarak
-        /// kuryeye gecer. Teslim edilene kadar araçtan da listede
-        /// durur, boylece kargo KAYBOLMAZ.
+        /// kuryeye gecer. Teslim edilene kadar listede durur, boylece
+        /// kargo KAYBOLMAZ.
         /// </summary>
         private void TakeFromVehicle(CourierController courier)
         {
             if (_cargo == null) return;
 
+            int wanted = WantedDestinationId();
+
+            // 1) Oncelik: bu adrese ait kargo.
             for (int i = 0; i < _cargo.Manifest.Loaded.Count; i++)
             {
                 Parcel parcel = _cargo.Manifest.Loaded[i];
                 if (parcel == null) continue;
-                if (!courier.PickUp(parcel)) return;
+                if (wanted >= 0 && parcel.DestinationId != wanted) continue;
 
+                if (!courier.PickUp(parcel)) return;
+                courier.PlayAction("pick-up", 0.4f);
+                Debug.Log("[VanCargoPoint] Kargo eline alindi: " + parcel.Label);
+                return;
+            }
+
+            // 2) Bu adrese ait kargo yoksa herhangi biri (depo iadesi).
+            for (int i = 0; i < _cargo.Manifest.Loaded.Count; i++)
+            {
+                Parcel parcel = _cargo.Manifest.Loaded[i];
+                if (parcel == null) continue;
+
+                if (!courier.PickUp(parcel)) return;
                 courier.PlayAction("pick-up", 0.4f);
                 Debug.Log("[VanCargoPoint] Kargo eline alindi: " + parcel.Label);
                 return;
             }
         }
 
-        private void BoardVehicle(CourierController courier)
+        /// <summary>Su anki duragin adres kimligi; yoksa -1.</summary>
+        private int WantedDestinationId()
         {
+            if (_delivery == null) return -1;
+            if (_delivery.CurrentStop == null) return -1;
+            return _delivery.CurrentStop.DestinationId;
+        }
+
+        /// <summary>Aracda bu adrese ait kargo var mi?</summary>
+        private bool HasCargoForCurrentStop()
+        {
+            int wanted = WantedDestinationId();
+            if (wanted < 0) return false;
+
+            for (int i = 0; i < _cargo.Manifest.Loaded.Count; i++)
+            {
+                if (_cargo.Manifest.Loaded[i] != null &&
+                    _cargo.Manifest.Loaded[i].DestinationId == wanted) return true;
+            }
+            return false;
+        }
+
+        /// <summary>
+        /// Karakteri araca bindirir. UIManager'in F tusu ve testler
+        /// AYNI metodu cagirir; boylece "F ile binme" yolu tek
+        /// yerde yazilidir.
+        /// </summary>
+        public void Board(CourierController courier)
+        {
+            if (courier == null || courier.IsInVehicle) return;
+
             // Once BURAYA ExitVehicle cagriliyordu ve karakter arac
             // disinda kaldigi icin oyuncu araca bir daha HICBIR ZAMAN
             // binemiyordu; oyun 2. adimda bitiyordu. Dogru cagri

@@ -57,7 +57,7 @@ neden açılmıyor" belirsizliği kalmaz.
 ### Testler
 
 EditMode testleri formülleri ve sahne bütünlüğünü, PlayMode testleri
-gerçek fizik motorunda sürüşü doğrular (**146 + 7 test**).
+gerçek fizik motorunda sürüşü VE oyunun tüm akışını doğrular (**146 + 8 test**).
 
 ```powershell
 # EditMode (146 test)
@@ -65,7 +65,7 @@ gerçek fizik motorunda sürüşü doğrular (**146 + 7 test**).
   -runTests -batchmode -nographics -projectPath "D:\KargoSimulator" `
   -testPlatform EditMode -testResults "D:\KargoSimulator\editmode.xml"
 
-# PlayMode (7 test)
+# PlayMode (8 test)
 & "C:\Program Files\Unity\Hub\Editor\6000.3.25f1\Editor\Unity.exe" `
   -runTests -batchmode -nographics -projectPath "D:\KargoSimulator" `
   -testPlatform PlayMode -testResults "D:\KargoSimulator\playmode.xml"
@@ -293,7 +293,27 @@ zorunda kalıyordu. Artık `E`'ye basmadan önce ne olacağını görüyor.
 ### Fare ve imleç
 
 Ayaktayken imleç oyuna kilitlenir (standart FPS). `Esc` imleci serbest
-bırakır ve panelleri kapatır.
+bırakır ve panelleri kapatır; **sol tık** imleci geri kilitler.
+
+### Tuşlar
+
+| Tuş | İşlev |
+|---|---|
+| **W/A/S/D** | Yürü (bakış yönüne göre) |
+| **Fare** | Bak (imleç kilitliyken) |
+| **Shift** | Koş (kargo taşırken koşamaz) |
+| **Space** | Zıpla |
+| **E** | Bağlamsal eylem: raftan al / araca koy / araktan al / kapıda bırak |
+| **F** | Araca bin / araçtan in (araç yavaş olmalı) |
+| **1 – 9** | Depo panelinde kargo seç |
+| **Q** | Aracı boşalt (kargolar depoya **döner**) |
+| **Esc** | Panelleri kapat, imleci serbest bırak |
+| **R** | Aracı başlangıç noktasına iade et |
+
+> **Neden binme `F`:** `E` kargoyla ilgilenir. Tek tuşta birleştirilseydi
+> araç doluyken "E: Araca bin" hiç görünmez ve oyuncu hiç binemezdi.
+> Ayrıca hızlı araçtan inmek karakteri aracın altında bırakıyordu;
+> bu yüzden inme yalnızca araç yavaşken çalışır.
 
 ### Süre ne zaman başlar
 
@@ -367,7 +387,7 @@ Detaylı oynanış: bakınız *Aşama 6 — Arayüz*.
 **Tasarım kararı:** Fizik matematiği `static` saf fonksiyonlarda
 (`ComputeSteerAngle`, `ComputeMotorTorque`, `ComputeBrakeTorque`).
 EditMode testleri formülleri sahne açmadan doğrular; PlayMode testleri
-gerçek fizik motorunda sürüşü doğrular.
+gerçek fizik motorunda sürüşü VE oyunun tüm akışını doğrular.
 
 Menü: `Kargo/Vehicle/Arac Prefabini Kur`
 
