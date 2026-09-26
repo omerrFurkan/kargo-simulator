@@ -238,7 +238,11 @@ namespace KargoSim.Core
             }
 
             var vanPoint = FindFirstObjectByType<Player.VanCargoPoint>();
-            if (vanPoint != null) vanPoint.Configure(_cargo, _delivery, courier, vehicleController, vehicleCamera);
+            if (vanPoint != null)
+            {
+                vanPoint.Configure(_cargo, _delivery, courier, vehicleController, vehicleCamera);
+                uiManager?.SetVanPoint(vanPoint);
+            }
 
             var door = FindFirstObjectByType<Player.AddressDoor>();
             if (door != null) door.Configure(_delivery, courier);
@@ -281,6 +285,21 @@ namespace KargoSim.Core
             // ParcelDelivered uzerinden ekonomiye gider), sonra ozeti uret.
             _delivery?.FailRemainingParcels();
             _economy?.EndDay(day);
+
+            // Gun bittiginde arac nerede olursa olsun depoya don.
+            // Ayar tanimliydi ama HICBIR YERDE okunmuyordu: oyuncu
+            // 90 m uzaklakta gun bitince yeni kargo geliyor, arac orada
+            // kaliyor ve "depoya don" yaziyordu.
+            if (config != null && config.forceReturnToDepotOnDayEnd)
+            {
+                var vehicle = FindFirstObjectByType<Vehicle.ArcadeVehicleController>();
+                var layout = mapLayout;
+                if (vehicle != null && layout != null)
+                {
+                    vehicle.SetSpawnPoint(layout.depotPosition, Quaternion.identity);
+                    vehicle.Respawn();
+                }
+            }
         }
 
 #if UNITY_EDITOR

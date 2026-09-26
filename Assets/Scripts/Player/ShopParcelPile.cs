@@ -75,19 +75,28 @@ namespace KargoSim.Player
         {
             if (!CanInteract(courier)) return;
 
+            // Tek E ile EL DOLANA KADAR al. Once sadece bir kutu
+            // aliniyordu; oyuncu "3 kutu biriktir" diye umuyordu ama
+            // E'ye uc kez basmak zorundaydi.
+            int taken = 0;
             var available = _cargo.Manifest.Available;
-            for (int i = 0; i < available.Count; i++)
+
+            for (int i = 0; i < available.Count && courier.CanCarryMore; i++)
             {
                 if (available[i] == null) continue;
-
                 if (!courier.PickUp(available[i])) continue;
 
-                // Raftan kaldirildi: gorsel sayim bir azalsin.
                 _taken.Add(available[i].Id);
-                courier.PlayAction("pick-up", 0.4f);
-                Refresh();
-                return;
+                taken++;
             }
+
+            if (taken > 0)
+            {
+                courier.PlayAction("pick-up", 0.4f);
+                Debug.Log("[ShopParcelPile] " + taken + " kutu alindi: " + courier.CarriedCount + " elde.");
+            }
+
+            Refresh();
         }
 
         /// <summary>

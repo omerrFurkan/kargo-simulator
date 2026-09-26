@@ -44,6 +44,9 @@ namespace KargoSim.UI
                  "Tab'i odak degistirmek icin kullanir - Editor'de calismaz, " +
                  "build'de calisir. Bu yuzden E birincil.")]
         [SerializeField] private KeyCode confirmKey = KeyCode.E;
+        [Tooltip("Araca bin / aractan in. E kargoyla ilgilenir; binme " +
+                 "ayri tusa ayrildi, yoksa arac doluyken oyuncu hic binemez.")]
+        [SerializeField] private KeyCode boardKey = KeyCode.F;
         [SerializeField] private KeyCode depotToggleKey = KeyCode.Tab;
         [SerializeField] private KeyCode unloadAllKey = KeyCode.Q;
         [SerializeField] private KeyCode closeKey = KeyCode.Escape;
@@ -55,6 +58,7 @@ namespace KargoSim.UI
         private MapLayout _layout;
         private Transform _vehicle;
         private Player.CourierController _courier;
+        private Player.VanCargoPoint _vanPoint;
         private bool _bound;
 
         /// <summary>
@@ -147,12 +151,24 @@ namespace KargoSim.UI
             bool atDepot = IsAtDepot();
             bool depotOpen = depotView != null && depotView.IsOpen;
 
+            // --- Gün sonu özeti: oyun DURUR, oyuncu okuyup devam eder ---
+            // Önce panel "Tab: yeni güne başla" yazıyordu ama Tab hiçbir
+            // şey yapmıyordu ve oyun panelin arkasında kesintisiz akıyordu.
+            if (summaryView != null && summaryView.IsOpen)
+            {
+                if (Input.GetKeyDown(confirmKey) || Input.GetKeyDown(depotToggleKey))
+                {
+                    summaryView.Hide();
+                }
+                UpdateHint(atDepot, depotOpen);
+                return;
+            }
+
             // --- Esc: her seyi kapat, imleci serbest birak ---
             if (Input.GetKeyDown(closeKey))
             {
                 depotView?.Close();
                 stopView?.Hide();
-                summaryView?.Hide();
                 _courier?.SetCursorLocked(false);
             }
 
@@ -177,40 +193,70 @@ namespace KargoSim.UI
                 }
             }
 
-            // --- E: baglamsal onay ---
-            if (Input.GetKeyDown(confirmKey))
+            // --- E: baglamsal onay (yalnizca odakta hedef varken) ---
+            if (Input.GetKeyDown(confirmKey) && !depotOpen)
             {
                 // Ayaktayken E, odaktaki hedefe gider: raftan kargo al,
-                // araca koy, araca bin, kapiya birak. HEDEF ne olacagini
-                // kendisi soyler.
+                // araca koy, araktan al, kapida birak.
                 if (_courier != null && !_courier.IsInVehicle)
                 {
-                    if (!_courier.TryInteract()) OpenDepot();
-                    return;
+                    if (!_courier.TryInteract() && atDepot) OpenDepot();
                 }
-
-                if (_courier != null && _courier.IsInVehicle)
+                else if (_courier != null && _courier.IsInVehicle)
                 {
-                    // Araçta: E -> aracdan in
-                    ExitVehicle();
-                    return;
+                    if (_delivery != null && _delivery.CurrentStop != null) RequestDeliverNext();
+                }
+                else if (atDepot) OpenDepot();
+            }
+
+            // --- Depo paneli acikken: rakam sec, Q bosalt, E yukle ---
+            if (depotOpen)
+            {
+                for (int i = 0; i < 9; i++)
+                {
+                    if (Input.GetKeyDown(KeyCode.Alpha1 + i)) depotView.ToggleSelection(i);
                 }
 
-                if (depotOpen) RequestLoadSelected();
-                else if (atDepot) OpenDepot();
-                else if (_delivery != null && _delivery.CurrentStop != null) RequestDeliverNext();
+                if (Input.GetKeyDown(unloadAllKey)) _cargo.UnloadVehicle();
+
+                if (Input.GetKeyDown(confirmKey)) RequestLoadSelected();
             }
+
+            // --- F: araca bin / aractan in ---
+            // E kargoyla ilgilenir; binme AYRI tus. Tek tusa
+            // sigdirilsaydi arac doluyken oyuncu hic binemezdi.
+            if (Input.GetKeyDown(boardKey)) ToggleVehicle();
 
             UpdateHint(atDepot, depotOpen);
         }
 
-        /// <summary>Aracdan in: kurye arac lastiginin yanina belirir.</summary>
-        private void ExitVehicle()
+        /// <summary>
+        /// Araca biner veya aractan iner. HIZLI arac birakilmaz:
+        /// hareketli bir aracin yanina 1sinda inmak karakteri
+        /// aracin altinda birakir.
+        /// </summary>
+        private void ToggleVehicle()
         {
-            if (_courier == null || _vehicle == null) return;
+            if (_courier == null || _vanPoint == null) return;
 
-            Vector3 spot = _vehicle.position + _vehicle.right * 1.8f;
-            _courier.ExitVehicle(spot);
+            if (_courier.IsInVehicle)
+            {
+                if (!_vanPoint.IsVehicleSlow())
+                {
+                    if (hud != null) hud.SetHint("Arac yavaslayinca inebilirsin");
+                    return;
+                }
+
+                _courier.ExitVehicle(_vanPoint.ExitSpot());
+                return;
+            }
+
+            _courier.EnterVehicle();
+        }
+
+        public void SetVanPoint(Player.VanCargoPoint point)
+        {
+            _vanPoint = point;
         }
 
         /// <summary>
@@ -248,13 +294,16 @@ namespace KargoSim.UI
                 if (_courier.IsCarrying)
                     prompt = (prompt == "" ? "" : prompt + "    |    ") + "Elde: " + _courier.CarriedCount;
 
-                hud.SetHint(prompt == "" ? "Dukkana gir, raftan kargo al" : prompt);
+                // Odak yokken SABIT metin yazmak yanilticiydi: oyuncu
+                // aracin arkasina yururken de "dukkana gir" yaziyordu.
+                // Artik gercek duruma gore susar.
+                hud.SetHint(prompt);
                 return;
             }
 
             if (_courier != null && _courier.IsInVehicle)
             {
-                hud.SetHint("[E] Aracdan in    |    Depo: mavi alan    |    Hedef: renkli kare");
+                hud.SetHint("[F] Aracdan in    |    Depo: mavi alan    |    Hedef: renkli kare");
                 return;
             }
 
@@ -266,7 +315,7 @@ namespace KargoSim.UI
 
             if (atDepot)
             {
-                hud.SetHint("[E] Depoyu ac");
+                hud.SetHint("[E] Depoyu ac    |    [F] Araca bin");
                 return;
             }
 

@@ -264,10 +264,14 @@ namespace KargoSim.Tests.EditMode
 
             IgnoreEditorDestroyError(() => pile.Interact(_courier));
 
-            Assert.AreEqual(1, _courier.CarriedCount,
-                "Raftan bir kutu alinmali; kurye bos kalmamali.");
-            Assert.AreEqual(1, _courier.CarriedParcels.Count,
-                "Elde GERCEK kargo kaydi olmali (gorsel degil).");
+            // Tek E ile el DOLDURULUR (maxCarry = 3). Once sadece bir
+            // kutu aliniyordu ve oyuncu "3 kutu" diye umuyordu.
+            Assert.Greater(_courier.CarriedCount, 0,
+                "Raftan en az bir kutu alinmali; kurye bos kalmamali.");
+            Assert.LessOrEqual(_courier.CarriedCount, 3,
+                "Kurye kapasitesi asilmamali (maxCarry = 3).");
+            Assert.AreEqual(_courier.CarriedCount, _courier.CarriedParcels.Count,
+                "Gorsel yigin ile GERCEK kargo listesi esit olmali.");
 
             Parcel taken = _courier.CarriedParcels[0];
             Assert.IsNotNull(taken, "Alinan kargo nesnesi null olmamali.");

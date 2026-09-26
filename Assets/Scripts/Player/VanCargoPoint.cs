@@ -40,13 +40,19 @@ namespace KargoSim.Player
         {
             get
             {
-                if (_courier == null) return "";
-                if (_courier.IsInVehicle) return "";
+                if (_courier == null || _courier.IsInVehicle) return "";
 
+                string action;
                 if (_courier.IsCarrying)
-                    return "E: Araca koy (" + _courier.CarriedCount + " kutu)";
+                    action = "E: Araca koy (" + _courier.CarriedCount + " kutu)";
+                else if (_cargo != null && _cargo.Manifest.LoadedCount > 0)
+                    action = "E: Kargo al (" + _cargo.Manifest.LoadedCount + " aracda)";
+                else
+                    action = "";
 
-                return "E: Araca bin";
+                // Araca binmek AYRI tus: E kargoyla ilgilenir, F biner.
+                // Tek tusa sigdirilirsa arac doluysa oyuncu hic binemez.
+                return action == "" ? "[F] Araca bin" : action + "    |    [F] Araca bin";
             }
         }
 
@@ -65,7 +71,71 @@ namespace KargoSim.Player
                 return;
             }
 
+            if (_cargo != null && _cargo.Manifest.LoadedCount > 0 && courier.CanCarryMore)
+            {
+                TakeFromVehicle(courier);
+                return;
+            }
+
             BoardVehicle(courier);
+        }
+
+        /// <summary>
+        /// Araktaki kargolardan birini kuryenin eline alir.
+        ///
+        /// Neden gerekli: Adres teslimi kuryenin eliyle yapiliyor;
+        /// ama arac→el yolu HIC YOKTU. Oyuncu adrese gidip araci
+        /// birakip eve yuruyor, kapida "kargoyu birak" dediginde eli
+        /// BOS oluyor ve oyun hic para kazanamiyordu.
+        ///
+        /// Kargo sistemde "yuklendi" olarak kalir; gorsel olarak
+        /// kuryeye gecer. Teslim edilene kadar araçtan da listede
+        /// durur, boylece kargo KAYBOLMAZ.
+        /// </summary>
+        private void TakeFromVehicle(CourierController courier)
+        {
+            if (_cargo == null) return;
+
+            for (int i = 0; i < _cargo.Manifest.Loaded.Count; i++)
+            {
+                Parcel parcel = _cargo.Manifest.Loaded[i];
+                if (parcel == null) continue;
+                if (!courier.PickUp(parcel)) return;
+
+                courier.PlayAction("pick-up", 0.4f);
+                Debug.Log("[VanCargoPoint] Kargo eline alindi: " + parcel.Label);
+                return;
+            }
+        }
+
+        private void BoardVehicle(CourierController courier)
+        {
+            // Once BURAYA ExitVehicle cagriliyordu ve karakter arac
+            // disinda kaldigi icin oyuncu araca bir daha HICBIR ZAMAN
+            // binemiyordu; oyun 2. adimda bitiyordu. Dogru cagri
+            // EnterVehicle.
+            courier.EnterVehicle();
+        }
+
+        /// <summary>
+        /// Karakterin arac lastiginin yanina inmesi icin guvenli nokta.
+        ///
+        /// Once UIManager konyumu kendisi hesapliyordu ve hiz kontrolu
+        /// yoktu: 90 km/h ile E'ye basinca karakter hareketli aracin
+        /// altina firlatiliyordu.
+        /// </summary>
+        public Vector3 ExitSpot()
+        {
+            Transform reference = _vehicle != null ? _vehicle.transform : transform;
+            Vector3 right = Vector3.ProjectOnPlane(reference.right, Vector3.up).normalized;
+            if (right.sqrMagnitude < 0.01f) right = Vector3.right;
+            return reference.position + right * 2.2f + Vector3.up * 0.1f;
+        }
+
+        /// <summary>Arac yavas mi? (Hizli arac birakilmaz.)</summary>
+        public bool IsVehicleSlow()
+        {
+            return _vehicle == null || _vehicle.SpeedKmh < 6f;
         }
 
         private void LoadCarried(CourierController courier)
@@ -105,27 +175,6 @@ namespace KargoSim.Player
                 Debug.LogWarning("[VanCargoPoint] " + rejected + " kutu araca sigmadi (kapasite); elde kaldi.");
             if (moved > 0)
                 Debug.Log("[VanCargoPoint] " + moved + " kutu araca yuklendi.");
-        }
-
-        private void BoardVehicle(CourierController courier)
-        {
-            Vector3 door = DoorWorldPosition();
-            courier.ExitVehicle(door);
-            courier.SetCursorLocked(true);
-        }
-
-        /// <summary>Karakterin aractan inebilecegi nokta.</summary>
-        public Vector3 DoorWorldPosition()
-        {
-            Transform reference = _vehicle != null ? _vehicle.transform : transform;
-            return reference.TransformPoint(doorOffset);
-        }
-
-        /// <summary>Arac lastiklerinin uzerine dogru nokta (karakter burada belirir).</summary>
-        public Vector3 ExitSpot()
-        {
-            Transform reference = _vehicle != null ? _vehicle.transform : transform;
-            return reference.TransformPoint(new Vector3(1.6f, 0.2f, 0f));
         }
     }
 }

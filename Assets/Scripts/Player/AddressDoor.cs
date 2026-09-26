@@ -33,9 +33,18 @@ namespace KargoSim.Player
                 if (_courier == null) return "";
                 if (_delivery == null || _delivery.CurrentStop == null) return "";
 
-                int pending = _delivery.CurrentStop.PendingCount;
+                DeliveryStop stop = _delivery.CurrentStop;
+                int pending = stop.PendingCount;
                 if (pending <= 0) return "Adres tamamlandi";
+
                 if (!_courier.IsCarrying) return "Kargo yok (elimde)";
+
+                // Elde kutu VAR ama bu adrese ait DEGILSE: once "burada
+                // bir sey yok" demek, sonra E'ye basilinca sessizce
+                // hicbir sey olmamak yerine kapiya gotur.
+                if (!CarriesForThisStop())
+                    return "Bu adrese ait kargo yok (elde " + _courier.CarriedCount + ")";
+
                 return "E: Karguyu birak (" + pending + " bekliyor)";
             }
         }
@@ -45,7 +54,25 @@ namespace KargoSim.Player
             if (courier == null || _delivery == null) return false;
             if (_delivery.CurrentStop == null) return false;
             if (_delivery.CurrentStop.PendingCount <= 0) return false;
-            return courier.IsCarrying;
+            if (!courier.IsCarrying) return false;
+
+            return CarriesForThisStop();
+        }
+
+        /// <summary>Eldeki kutulardan bu adrese ait bir tane var mi?</summary>
+        private bool CarriesForThisStop()
+        {
+            if (_delivery.CurrentStop == null) return false;
+
+            var carried = _courier != null ? _courier.CarriedParcels : null;
+            if (carried == null) return false;
+
+            for (int i = 0; i < carried.Count; i++)
+            {
+                if (carried[i] == null) continue;
+                if (carried[i].DestinationId == _delivery.CurrentStop.DestinationId) return true;
+            }
+            return false;
         }
 
         public void Interact(CourierController courier)

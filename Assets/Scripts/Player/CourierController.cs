@@ -124,6 +124,7 @@ namespace KargoSim.Player
             }
 
             Look();
+            HandleClickToRecapture();
             Move(deltaTime);
             ScanForFocus();
             UpdateLocomotionAnimation();
@@ -381,8 +382,8 @@ namespace KargoSim.Player
                 controller.enabled = true;
                 _verticalVelocity = 0f;
             }
-            // Karakter aracın bakış yönüne dönsün: ileri yön kargo
-            // yükleme/kapı yönü olsun.
+            // Karakter aracin bakis yonune doner: ileri yon kargo
+            // yukleme / kapi yonu olsun.
             if (vehicleController != null)
                 transform.rotation = vehicleController.transform.rotation;
 
@@ -390,6 +391,26 @@ namespace KargoSim.Player
             if (fpsCamera != null) fpsCamera.enabled = true;
             if (vehicleCamera != null) vehicleCamera.enabled = false;
             if (vehicleController != null) vehicleController.ControlsLocked = true;
+
+            // KRITIK: imleci kilitlemiyorduk. Bu olmadan Look() hemen
+            // donuyor ve FPS kamera donmus kaliyor; oyuncu WASD ile
+            // yurur ama nereye baktigini degistiremez.
+            SetCursorLocked(true);
+        }
+
+        /// <summary>
+        /// Ayaktayken fare tiklamasi imleci yeniden kilitler.
+        ///
+        /// Neden: Esc imleci serbest birakir (panel kapatma). Unity
+        /// Editor'de fare Editor'a gider ve oyuncu tekrar oyuna
+        /// odaklanmadan bakis kontrolu gelmez. Sol tik bu boslugu
+        /// kapatir.
+        /// </summary>
+        public void HandleClickToRecapture()
+        {
+            if (_inVehicle) return;
+            if (_cursorLocked) return;
+            if (Input.GetMouseButtonDown(0)) SetCursorLocked(true);
         }
 
         private void SetVisible(bool visible)
