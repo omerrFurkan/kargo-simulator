@@ -58,6 +58,9 @@ namespace KargoSim.EditorTools
             ShopSetupTool.Build();
             Debug.Log("[Kargo] 8/8 dukkan + etkilesim noktalari");
 
+            CitySetupTool.Build();
+            Debug.Log("[Kargo] 9/9 sehir dekoru");
+
             Debug.Log("[Kargo] === Tam kurulum bitti ===");
         }
 

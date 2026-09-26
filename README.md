@@ -57,10 +57,10 @@ neden açılmıyor" belirsizliği kalmaz.
 ### Testler
 
 EditMode testleri formülleri ve sahne bütünlüğünü, PlayMode testleri
-gerçek fizik motorunda sürüşü VE oyunun tüm akışını doğrular (**146 + 8 test**).
+gerçek fizik motorunda sürüşü VE oyunun tüm akışını doğrular (**179 + 8 test**).
 
 ```powershell
-# EditMode (146 test)
+# EditMode (179 test)
 & "C:\Program Files\Unity\Hub\Editor\6000.3.25f1\Editor\Unity.exe" `
   -runTests -batchmode -nographics -projectPath "D:\KargoSimulator" `
   -testPlatform EditMode -testResults "D:\KargoSimulator\editmode.xml"
@@ -646,7 +646,86 @@ birlikte çalışması daha doğru olur.
 
 ---
 
-## Geliştirme aşamaları
+## Aşama 7 — Kayıt / Yükleme
+
+Oyuncu ilerlemesi `persistentDataPath/kargosave.json` dosyasına yazılır.
+Kayıt **gun sonunda otomatik** alınır (`GameCompositionRoot.autosaveOnDayEnd`).
+
+| Kaydedilen | Geri yüklenen |
+|---|---|
+| Gün, saat | Gün, saat |
+| Para, XP, seviye | `PlayerProgress.RestoreFromSave` |
+| Kargolar (tür, alıcı, adres, ağırlık, hacim, öncelik, süre, durum) | Yeniden üretilip depoya konur, araçtakiler tekrar araca yüklenir |
+| Son kargo kimliği | Kimlik çakışması olmaması için zorlanır |
+
+**Neden kargolar JSON'dan okunmuyor, yeniden üretiliyor:** `Parcel`
+iç durum taşıyan düz bir sınıf; onu katman katman geri kurmak yerine
+kayıttaki girdilerden (`ParcelGenerator` ile birebir aynı formül) yeniden
+hesaplanıyor. Böylece kurgudaki bir değişiklik eski kayıtları bozmaz.
+
+**Neden `nextParcelId` dört katmanda zorlanıyor:** `Capture` → `TrySave`
+→ `Load` → `Restore`. Kimlik çakışması olursa oyuncu aynı kargoyu iki
+kez üretir, iki kere teslim eder ve iki kere para kazanır. Bozuk bir
+sayaç sessizce düzeltilir.
+
+**Teslim edilmiş kargolar geri yüklenmez.** Depoya konurlarsa oyuncu
+aynı gün onu tekrar yükleyip teslim edebilir ve ödeme iki kez yazılır.
+
+Kayıt **opsiyoneldir**: dosya bozuksa veya yazılamazsa oyun durmaz,
+konsola uyarı verir ve yeni oyunla devam eder.
+
+## Aşama 8 — Ses (prosedürel)
+
+Projede **hiç ses dosyası yok ve gerekmiyor**: tüm efektler kod ile
+sentezleniyor (`AudioClip.Create` + `Mathf.Sin` + kendi LCG tabanlı
+gürültü üreticisi). Toplam bellek ~220 KB, lisans sorunu yok.
+
+| Kuyruk | Tetikleyici |
+|---|---|
+| Kutu al | `CargoChanged` |
+| Araca koy | `ParcelLoaded` |
+| Teslim başarılı / geç | `ParcelDelivered` (sonuç başarılıysa) |
+| Teslim başarısız | `ParcelDelivered` (sonuç başarısızdaysa) |
+| Para kazanıldı | `PayoutApplied` (ödeme > 0 ise) |
+| Seviye yükseldi | `LevelUp` |
+| Ayak sesi | Karakter yürürken `Tick` ile aralıklı |
+| Motor | Araç hızına göre pitch; döngüsel, dikişsiz |
+
+`UnityEngine.Random` **kullanılmaz**: aynı parametre her zaman aynı
+örneği üretir, testler tekrarlanabilir olur.
+
+Susturma sesi bastırmakla değil **karar zincirini keserek** yapar
+(`TotalCuesPlayed` artmaz) — bu sayede testler sesi duymadan da
+doğrulayabilir. `Awake`'de abone olur, `OnDestroy`'da **kesinlikle**
+çıkar (Domain Reload kapalıyken sızıntı olur).
+
+## Aşama 9 — Şehir dekoru
+
+`MapLayout` yalnızca nokta listesi verir; dekor aracı o bilgiyi
+sahnenin üstüne kurar (asset değişmez).
+
+| Öğe | Miktar | Kural |
+|---|---|---|
+| Yol | 28 segment + depo alanı | 5 m genişlik, zemine 0.06 m (ped görünsün) |
+| Kaldırım | 14 | Kapı önü şeridi |
+| Bina | 14 adres × 2 | Adres başına 2, renk kimliğe göre |
+| Sokak lambası | 8 | Yol kenarında |
+| Ağaç | 36 (tavan) | Yol boyunca seyrek |
+
+Toplam ~155 GameObject (bütçe 300).
+
+**İki kural dosyayı belirler:**
+
+1. **Çakışma yok.** Her nesne ayak izinde 9 örnek nokta alır ve
+   ped / kapı / dükkân / araç / kurye / yol payına göre sınanır.
+   Sığmayan aday **atlanır** — zorla yerleştirilen bina oyuncuyu kapatırdı.
+2. **Belirlenimcilik.** Konumlar `Mathf.Sin` tabanlı seudo-rastgele
+   ile üretilir, tohum sabit: menüye iki kez basmak aynı şehri verir.
+
+Kurulum sonrası `Verify` **sayısal** rapor verir: en yakın dekor-ped
+mesafesi, zemin altında kalan bina sayısı, nesne bütçesi.
+
+---
 
 | # | Aşama | Durum |
 |---|---|---|

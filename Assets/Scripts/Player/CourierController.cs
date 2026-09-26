@@ -94,6 +94,14 @@ namespace KargoSim.Player
 
         public int CarriedCount => _carriedParcels.Count;
 
+        /// <summary>
+        /// Karakter yuruyor mu? Ses yoneticisi adim sesi icin bunu
+        /// okur. Girdi yonu (duzune donuk mu) DEGIL, sadece tus basili
+        /// mi diye bakilir; yoksa duvara dayanip zorlanan kurye
+        /// kosar gibi ses cikarirdi.
+        /// </summary>
+        public bool IsMoving => _isMoving;
+
         /// <summary>Odakta olan etkilesim noktasi (yoksa null).</summary>
         public IInteractable Focus => _focus;
 

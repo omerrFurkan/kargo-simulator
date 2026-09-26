@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using KargoSim.Cargo;
 using UnityEngine;
 
@@ -51,6 +52,15 @@ namespace KargoSim.Core
                  "arac icindeyken arac girdileri kullanilir.")]
         [SerializeField] private Player.CourierController courier;
 
+        [Header("Sunum")]
+        [Tooltip("Ses yoneticisi. Bos birakilirsa oyun sessiz oynanir " +
+                 "(prosedürel ses, harici dosya yok).")]
+        [SerializeField] private Audio.AudioDirector audio;
+
+        [Header("Kayit")]
+        [Tooltip("Gun sonunda otomatik kayit. Kapaliysa oyun kayit tutmaz.")]
+        [SerializeField] private bool autosaveOnDayEnd = true;
+
         private GameClock _clock;
         private CargoSystem _cargo;
         private Delivery.DeliverySystem _delivery;
@@ -87,6 +97,8 @@ namespace KargoSim.Core
             CreateDeliverySystem();
             CreateCourier();
             CreateEconomy();
+            CreateAudio();
+            LoadFromDisk();
 
             // Gun dongusunu DIŞARIDAN dinlemek: saat degisimi once
             // tetiklenir, biz de ondan sonra kargo/teslim tazeliyoruz.
@@ -280,6 +292,80 @@ namespace KargoSim.Core
             _delivery?.BeginDay();
         }
 
+        /// <summary>
+        /// Ses yoneticisini hazirlar. Yoksa oyun sessiz oynanir; bu bir
+        /// HATA degil (ses opsiyonel).
+        /// </summary>
+        private void CreateAudio()
+        {
+            if (audio == null)
+            {
+                audio = GetComponent<Audio.AudioDirector>();
+                if (audio == null) return;
+            }
+
+            audio.Initialize();
+        }
+
+        /// <summary>
+        /// Diskte kayit varsa yukler.
+        ///
+        /// Neden Awake'de: oyuncu Play'e basar basmaz eski parasini ve
+        /// kargolarini gormeli. Kayit YOKSA hicbir sey yapilmaz
+        /// (yeni oyun).
+        /// </summary>
+        private void LoadFromDisk()
+        {
+            if (_cargo == null || _progress == null) return;
+            if (Save.SaveSystem.Exists() == false) return;
+
+            Save.SaveData data = Save.SaveSystem.Load();
+            if (data == null) return;
+
+            // systemTime: aracdaki kargolarin geri sayimi nereden
+            // baslayacak? Gunun gecen suresinden hesaplanir; sifir
+            // verilirse kargolar gun basindan baslar.
+            float systemTime = _clock != null
+                ? Mathf.Clamp01(_clock.DayProgress) * config.dayLengthSeconds
+                : 0f;
+
+            Save.RestoreResult result = Save.SaveSystem.Restore(
+                data, _progress, _cargo, parcelTypes, systemTime, mapLayout);
+
+            if (result.Success == false) return;
+
+            if (_clock != null) _clock.SetHour(data.hourOfDay);
+            _delivery?.BeginDay();
+
+            Debug.Log("[GameCompositionRoot] Kayit yuklendi: Gun " + data.day
+                      + ", " + data.money + " TL, " + data.ParcelCount + " kargo.");
+        }
+
+        /// <summary>
+        /// Gun sonunda kaydeder. Kayit yazilamazsa oyun DURMAZ; sadece
+        /// uyari verir (kayit opsiyonel bir konfor).
+        /// </summary>
+        private void SaveToDisk()
+        {
+            if (_cargo == null || _progress == null) return;
+
+            var parcels = new List<Cargo.Parcel>();
+            parcels.AddRange(_cargo.Manifest.Available);
+            parcels.AddRange(_cargo.Manifest.Loaded);
+
+            Save.SaveData data = Save.SaveSystem.Capture(
+                _clock != null ? _clock.Day : 1,
+                _progress.Money,
+                _progress.Xp,
+                _progress.Level,
+                _clock != null ? _clock.HourOfDay : config.startHour,
+                parcels,
+                parcelTypes,
+                _cargo.GeneratedToday + 1);
+
+            Save.SaveSystem.TrySave(data);
+        }
+
         private void OnDayEnded(int day)
         {
             // Once teslim edilmeyenleri basarisiz say (odemesi
@@ -301,6 +387,8 @@ namespace KargoSim.Core
                     vehicle.Respawn();
                 }
             }
+
+            if (autosaveOnDayEnd) SaveToDisk();
         }
 
 #if UNITY_EDITOR
@@ -396,8 +484,40 @@ namespace KargoSim.Core
             // etkilesim ayni zamanda aksin.
             courier?.Tick(dt);
 
+            // Ses motoru hiz ile degisir, adim sesi arakla ilerler.
+            // Update YOK: oyunun tek Update'inden surulur.
+            if (audio != null)
+            {
+                bool walking = courier != null && !courier.IsInVehicle && courier.IsMoving;
+                audio.SetWalking(walking);
+
+                if (courier != null && !courier.IsInVehicle) audio.SetEngineActive(false);
+                else
+                {
+                    audio.SetEngineActive(true);
+                    float maxSpeed = playerVehicle != null ? playerVehicle.maxSpeed : 30f;
+                    float ratio = maxSpeed > 0.01f
+                        ? Mathf.Clamp01(Mathf.Abs(vehicleSpeedKmh) / (maxSpeed * 3.6f))
+                        : 0f;
+                    audio.SetEnginePitch01(ratio);
+                }
+
+                audio.Tick(dt);
+            }
+
             // Arayuz de oyunun TEK Update cagrisindan surulur.
             if (uiManager != null) uiManager.Tick(dt);
+        }
+
+        private float vehicleSpeedKmh
+        {
+            get
+            {
+                var controller = _playerVehicleTransform != null
+                    ? _playerVehicleTransform.GetComponent<Vehicle.ArcadeVehicleController>()
+                    : null;
+                return controller != null ? controller.SpeedKmh : 0f;
+            }
         }
     }
 }
