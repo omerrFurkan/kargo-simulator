@@ -90,6 +90,18 @@ namespace KargoSim.Player
             for (int i = 0; i < available.Count; i++)
             {
                 if (available[i] == null) continue;
+
+                // ASAMA 20: ELDEKI KUTUYU ATLA.
+                //
+                // Kargo araca yuklenene kadar depoda "bekliyor" durumunda
+                // kalir. Raf da eldeki kutu sistemde oldugu icin onu
+                // tekrar tekrar veriyordu: oyuncu E'ye 3 kez basinca
+                // "#1" kimlikli AYNI kutunun 3 kopyasi ele gecyordu ve
+                // araca yalnizca 1'i sigiyordu ("3 kutu araca sigmadi").
+                //
+                // Raf, kuryenin zaten elinde tuttugu kutuyu vermemeli.
+                if (courier.IsCarryingParcel(available[i].Id)) continue;
+
                 if (!courier.PickUp(available[i])) break;
 
                 _taken.Add(available[i].Id);

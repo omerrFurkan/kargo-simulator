@@ -210,15 +210,35 @@ namespace KargoSim.Player
         /// </summary>
         public Vector3 ExitSpot()
         {
-            // Oyuncu bindigi konuma doner. Binmisse kayitli konum
-            // kullanilir; hic binmemisse aracin yani varsayilir.
-            if (_hasBoardPosition) return _lastBoardPosition;
-
+            // ASAMA 20: INME YERI.
+            //
+            // Oyuncu: "bindigim yerde iniyorum, bisiklet nerde ben nerde".
+            //
+            // Bir onceki duzeltmede inme yeri DAIMA binme konumuna
+            // baglandi. Bu, araci bir yere surup inince oyuncuyu yuzlerce
+            // metre geriye isikliyordu: arac orada degil, oyuncu kilometre
+            // uzakta kalirdi. Ozellikle kotu bir cozumdu.
+            //
+            // DOGRU KURAL:
+            //   - Aracin YANINDASAN (yaklasik 5 m icinde) ayni yere in.
+            //     Oyuncu hic gitmediyse yerinden oturmasin.
+            //   - Arac uzaklastiysa aracin YANINA in. Kargo oyununda
+            //     aracin gitmedigi yerde kurye olmamalidir.
             Transform reference = _vehicle != null ? _vehicle.VehicleTransform : transform;
+
+            if (_hasBoardPosition)
+            {
+                float d = Vector3.Distance(_lastBoardPosition, reference.position);
+                if (d <= NearVehicleDistance) return _lastBoardPosition;
+            }
+
             Vector3 right = Vector3.ProjectOnPlane(reference.right, Vector3.up).normalized;
             if (right.sqrMagnitude < 0.01f) right = Vector3.right;
             return reference.position + right * 2.2f + Vector3.up * 0.1f;
         }
+
+        /// <summary>Bu mesafeden yakinda kurye aracin yaninda sayilir.</summary>
+        private const float NearVehicleDistance = 5f;
 
         /// <summary>Arac yavas mi? (Hizli arac birakilmaz.)</summary>
         public bool IsVehicleSlow()

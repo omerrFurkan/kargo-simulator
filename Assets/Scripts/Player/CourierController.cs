@@ -382,10 +382,44 @@ namespace KargoSim.Player
         /// <summary>Elde tasinan kargolar (systeme yazilacak GERCEK kargo).</summary>
         public IReadOnlyList<Parcel> CarriedParcels => _carriedParcels;
 
+        /// <summary>
+        /// Bu kutu zaten kuryede mi?
+        ///
+        /// ASAMA 20 - "3 kutu araca sigmadi (kapasite)" hatasinin sebebi.
+        ///
+        /// Kargo, araca yuklenene kadar depoda "bekliyor" durumunda kalir
+        /// (kaybolmamali). Raf da eldeki kutu sistemde oldugu icin onu
+        /// vermeye devam ediyordu: oyuncu E'ye 3 kez basip "#1" kimlikli
+        /// AYNI kutunun 3 kopyasini aliyordu.
+        ///
+        /// Olcum:
+        ///   Kutu alindi: #1 Derya Akin - Elektronik (elde 1)
+        ///   Kutu alindi: #1 Derya Akin - Elektronik (elde 2)
+        ///   Kutu alindi: #1 Derya Akin - Elektronik (elde 3)
+        ///   -> 3 kutu sigmadi, 1 sigdi
+        ///
+        /// Toplam 8.7 kg / 26.7 L idi; 60 kg / 150 L'ye rahat sigiyordu.
+        /// Reddedilen sey kapasite DEGIL, ayni parcellin arac sisteminde
+        /// ikinci kez durmamasiydi.
+        /// </summary>
+        public bool IsCarryingParcel(int parcelId)
+        {
+            for (int i = 0; i < _carriedParcels.Count; i++)
+            {
+                if (_carriedParcels[i] != null && _carriedParcels[i].Id == parcelId) return true;
+            }
+            return false;
+        }
+
         /// <summary>Depo/dükkân rafından bir kutu alır.</summary>
         public bool PickUp(Parcel parcel)
         {
             if (!CanCarryMore) return false;
+            if (parcel == null) return false;
+
+            // Ayni kutu iki kez ele alinamaz (bkz. IsCarryingParcel).
+            if (IsCarryingParcel(parcel.Id)) return false;
+
 
             var go = GameObject.CreatePrimitive(PrimitiveType.Cube);
             go.name = "Parcel_" + (parcel != null ? parcel.Id : 0);
