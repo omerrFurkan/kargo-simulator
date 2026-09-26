@@ -153,6 +153,16 @@ namespace KargoSim.Player
             // Arac icindeyken masayla etkilesim kurulamaz: kurye ayaktadir.
             if (courier == null || _packaging == null) return false;
             if (courier.IsInVehicle) return false;
+
+            // ASAMA 15: masanin UZERINDE yatan bir kutu varsa masada
+            // is VAR. Oyuncu kutuyu masaya birakip yerinde paketlemek
+            // isteyebilir; eli bos olsa bile masa calisir.
+            //
+            // Once masa sadece ELDE tutulan kutuyu kabul ediyordu.
+            // Dikey dilim "masaya birak, paketle" dedigi icin bu yol
+            // eksikti ve oyuncuonce kutuyu geri almak zorunda kaliyordu.
+            if (FindParcelOnTable() != null) return true;
+
             if (courier.CarriedCount <= 0) return false;
 
             // Elde HAZIR (paketlenmis) kargo varsa masada is yok: kutu zaten
@@ -160,12 +170,47 @@ namespace KargoSim.Player
             return FindUnpackaged(courier) != null;
         }
 
+        /// <summary>
+        /// Masanın çalışma alanında yatan kutu.
+        ///
+        /// Oyuncu kutuyu masaya bırakır (E), sonra yine E'ye basar ve
+        /// PAKETLEME başlar. Kutu masanın üstünde olduğu için
+        /// <see cref="GroundParcel.CanInteract"/> onu vermez; masaya
+        /// aittir.
+        /// </summary>
+        private Parcel FindParcelOnTable()
+        {
+            if (_visualRoot == null) return null;
+
+            // Kutu masanin cocugu degil, yere birakildigi icin ayri bir
+            // nesnedir: masanin yakininda ariyoruz.
+            var candidates = Physics.OverlapSphere(
+                _visualRoot.position + Vector3.up * 0.6f, 1.6f,
+                ~0, QueryTriggerInteraction.Collide);
+
+            for (int i = 0; i < candidates.Length; i++)
+            {
+                var ground = candidates[i].GetComponentInParent<GroundParcel>();
+                if (ground == null) continue;
+                if (ground.Parcel == null) continue;
+                if (ground.Parcel.IsPackaged) continue;
+
+                return ground.Parcel;
+            }
+
+            return null;
+        }
+
         public void Interact(CourierController courier)
         {
-            if (!CanInteract(courier)) return;
+            if (courier == null || _packaging == null || courier.IsInVehicle) return;
 
-            Parcel target = FindUnpackaged(courier);
+            // Once masadaki kutu (yerinde paketleme), sonra eldekiler.
+            Parcel onTable = FindParcelOnTable();
+            Parcel target = onTable != null ? onTable : FindUnpackaged(courier);
+
             if (target == null) return;
+            if (!_packaging.CanPackage(target)) return;
 
             float now = Now;
 

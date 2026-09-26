@@ -214,7 +214,18 @@ namespace KargoSim.UI
                 // araca koy, araktan al, kapida birak.
                 if (_courier != null && !_courier.IsInVehicle)
                 {
-                    if (!_courier.TryInteract() && atDepot) OpenDepot();
+                    bool used = _courier.TryInteract();
+
+                    // ASAMA 15: odakta HICBIR SEY yoksa ve oyuncunun
+                    // elinde kargo varsa E = BIRAK.
+                    //
+                    // Once burada hicbir sey olmuyordu: kutu yalnizca
+                    // araca konunca veya teslim edilince elden cikiyordu.
+                    // "Masaya gotur ve buraya birak" YAPILAMIYORDU.
+                    // Dikey dilim bu adimda koptugu icin oyun basindan
+                    // sonuna kadar oynanamazdi.
+                    if (!used && !atDepot) TryDropCarried();
+                    else if (!used && atDepot) OpenDepot();
                 }
                 else if (_courier != null && _courier.IsInVehicle)
                 {
@@ -261,6 +272,7 @@ namespace KargoSim.UI
                     return;
                 }
 
+                _vanPoint.SettleAfterExit();
                 _courier.ExitVehicle(_vanPoint.ExitSpot());
                 return;
             }
@@ -409,6 +421,26 @@ namespace KargoSim.UI
         // ------------------------------------------------------------------
         // Genel
         // ------------------------------------------------------------------
+
+        /// <summary>
+        /// Eldeki kutuyu yere birakir (E, hedef yokken).
+        ///
+        /// ASAMA 15: dikey dilim "masaya gotur -> BIRAK -> paketle ->
+        /// tekrar al" adimini gerektiriyordu ve bu adim YOKTU.
+        /// </summary>
+        private void TryDropCarried()
+        {
+            if (_courier == null || _courier.IsInVehicle) return;
+            if (_courier.CarriedCount <= 0) return;
+
+            Cargo.Parcel dropped = _courier.DropTopToWorld(_courier.transform.position);
+            if (dropped == null) return;
+
+            _courier.PlayAction("interact-right", 0.3f);
+            if (hud != null)
+                hud.SetHint("Kutu birakildi: " + dropped.Label
+                            + "  |  El: " + _courier.CarriedCount);
+        }
 
         private void OpenDepot()
         {

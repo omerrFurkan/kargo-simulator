@@ -390,6 +390,66 @@ namespace KargoSim.Player
         }
 
         /// <summary>
+        /// Eldeki EN USTTEKI kutuyu yere birakir ve kutu nesnesini
+        /// <see cref="GroundParcel"/> olarak OLUSTURUR.
+        ///
+        /// DUZELTME (Asama 15): once birakma YOKTU. <see cref="DropOne"/>
+        /// yalnizca gorseli YOK EDIYORDU - kutu dunya'da hicbir yerde
+        /// kalmiyordu. Oyuncu "masaya gotur ve buraya birak" dediginde
+        /// kutu kaybolup gidiyordu ve paketleme adimi baslamiyordu.
+        ///
+        /// Donus: bırakilan kargo veya null (elde kutu yoksa).
+        /// </summary>
+        public Parcel DropTopToWorld(Vector3 position, float forwardOffset = 0.9f)
+        {
+            if (_carriedParcels.Count == 0) return null;
+
+            int index = _carriedParcels.Count - 1;
+            Parcel parcel = _carriedParcels[index];
+
+            Vector3 dropPoint = position + transform.forward * forwardOffset
+                                + Vector3.up * 0.1f;
+
+            // Kutu nesnesi: gorsel + fizik (zeminle carpismasi icin).
+            var box = new GameObject("GroundParcel_" + (parcel != null ? parcel.Id : 0));
+
+            // Gorseli taşı: eldeki cube artık yerde duracak.
+            if (index < _carried.Count && _carried[index] != null)
+            {
+                Transform visual = _carried[index].transform;
+                visual.SetParent(box.transform, true);
+                visual.localPosition = Vector3.zero;
+                visual.localRotation = Quaternion.identity;
+                visual.localScale = Vector3.one;
+            }
+
+            var collider = box.AddComponent<BoxCollider>();
+            collider.size = new Vector3(0.42f, 0.42f, 0.42f);
+            collider.center = new Vector3(0f, 0.21f, 0f);
+
+            var ground = box.AddComponent<GroundParcel>();
+            ground.Configure(parcel, box.transform);
+
+            // Kutu yere otursun: yere gömulmesin.
+            if (Physics.Raycast(dropPoint + Vector3.up * 3f, Vector3.down,
+                                 out RaycastHit hit, 20f,
+                                 ~0, QueryTriggerInteraction.Ignore))
+            {
+                box.transform.position = hit.point + Vector3.up * 0.01f;
+            }
+            else
+            {
+                box.transform.position = dropPoint;
+            }
+
+            // Elden cikar.
+            if (index < _carried.Count) _carried.RemoveAt(index);
+            _carriedParcels.RemoveAt(index);
+
+            return parcel;
+        }
+
+        /// <summary>
         /// Elden TEK kargo birakir (gorseli de silinir).
         /// Araca koyarken ve kapida birakirken kullanilir; kalanlar
         /// elde kalir.

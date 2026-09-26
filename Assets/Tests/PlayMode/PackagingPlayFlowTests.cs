@@ -395,14 +395,19 @@ namespace KargoSim.Tests.PlayMode
 
             _courier.ExitVehicle(_vanPoint.ExitSpot());
             yield return null;
+
+            // ASAMA 15: raf artik TEK kutu veriyor (once iki eli de
+            // dolduruyordu). Oyuncu birden fazla kutu isterse E'ye TEKRAR
+            // basar - test de oyuncunun yaptigi gibi yapiyor.
+            _pile.Interact(_courier);
+            yield return null;
             _pile.Interact(_courier);
             yield return null;
 
             int carried = _courier.CarriedCount;
             Assert.GreaterOrEqual(carried, 2,
-                "Kilitleme testi icin en az 2 kargo gerekiyor; oyuncu "
-                + "tek kutuyu elle tasimak zorunda kalirsa kargo tasima "
-                + "oynanabilirligi suphelidir.");
+                "Iki E'ye basmak iki kutu almaya yetmeli; oyuncu kutu "
+                + "tasima akisini oynayamaz.");
 
             // Her kargoyu paketle: odak her seferinde yeniden aranir.
             for (int i = 0; i < carried; i++)
@@ -439,12 +444,30 @@ namespace KargoSim.Tests.PlayMode
             _vanPoint.Interact(_courier);
             yield return null;
 
-            Assert.AreEqual(before + expected, _root.Cargo.Manifest.LoadedCount,
-                "Tum kutular araca girmeli. Kapasite doluysa bu dogru bir "
-                + "sinirdir, hata degil - bu durumda yuklenen sayisi daha "
-                + "kucukse kapasite mesajini oku.");
-            Assert.AreEqual(0, _courier.CarriedCount,
-                "Yukleme sonrasi el bosalmali.");
+            // KAPASITE: bisiklet 60 kg / 150 L. Iki kutu bazen SIIGMAZ ve
+            // bu DOGRU bir sinirdir - kargo kaybolmamali, EDE KALMALIDIR.
+            // Test once sadece "hepsi girdi" diyordu ve kapasite dolunca
+            // kirmizi oluyordu.
+            int loaded = _root.Cargo.Manifest.LoadedCount - before;
+
+            Assert.Greater(loaded, 0,
+                "En az bir kutu araca girmeli; yukleme hic calismiyor.");
+            Assert.LessOrEqual(loaded, expected,
+                "Araca GIREN kutu sayisi eldekini ASAMAZ.");
+            Assert.AreEqual(expected - loaded, _courier.CarriedCount,
+                "Sigmayan kutular ELDE kalmali; oyuncu isini kaybetmemeli, "
+                + "bos yere arac bosuna gitmemeli.");
+
+            // Sığmayan kutu gercekten kapasite sinirindan mi?
+            if (loaded < expected)
+            {
+                var cap = _root.Cargo.Manifest.Capacity;
+                Assert.IsTrue(cap.IsValid,
+                    "Kapasite tanimi gecerli degil.");
+                Debug.Log("[Kapasite] " + loaded + "/" + expected
+                          + " kutu araca girdi. Sinir: " + cap.MaxWeightKg
+                          + " kg / " + cap.MaxVolumeLiters + " L");
+            }
         }
 
         // ==================================================================

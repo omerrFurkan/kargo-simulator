@@ -207,6 +207,31 @@ namespace KargoSim.Player
             return _vehicle == null || _vehicle.SpeedKmh < 6f;
         }
 
+        /// <summary>
+        /// Oyuncu aractan INDYKten sonra araci "yatistirir".
+        ///
+        /// ASAMA 15 (P0): oyuncunun CharacterController'i aracin BoxCollider'i
+        /// icine girince fizik motoru araci itiyordu. Oyuncu biraki yerinden
+        /// oynayinca arac da onunla birlikte kayiyor, yatip zigzag
+        /// yapiyordu. Oyuncu ve arac birbirinden BAGIMSIZ olmali.
+        ///
+        /// Cozum: cikis aninda aracin hizini sifirla ve sonraki kareler
+        /// icin surtunmeyi artir. Bicak kesmez, motoru durdurur; arac
+        /// yine fiziksel olarak durur, yalnizca oyuncu onu itmez.
+        /// </summary>
+        public void SettleAfterExit()
+        {
+            var rb = _vehicle != null && _vehicle.VehicleTransform != null
+                ? _vehicle.VehicleTransform.GetComponent<Rigidbody>()
+                : null;
+
+            if (rb == null) return;
+
+            rb.linearVelocity = Vector3.zero;
+            rb.angularVelocity = Vector3.zero;
+            rb.angularDrag = 12f;
+        }
+
         private void LoadCarried(CourierController courier)
         {
             if (_cargo == null) return;

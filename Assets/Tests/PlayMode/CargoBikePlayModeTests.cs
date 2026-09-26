@@ -289,6 +289,43 @@ namespace KargoSim.Tests.PlayMode
             }
         }
 
+        /// <summary>
+        /// Iki kutu hazirlar.
+        ///
+        /// ASAMA 15: raf artik TEK kutu veriyor (once iki eli de
+        /// dolduruyordu). Oyuncu cogu kutu istiyorsa E'ye TEKRAR basar -
+        /// bu yuzden test de ayni sekilde basar.
+        /// </summary>
+        private IEnumerator PrepareTwoPackagedBoxes()
+        {
+            for (int n = 0; n < 2; n++)
+            {
+                _pile.Interact(_courier);
+                yield return null;
+            }
+            Assert.GreaterOrEqual(_courier.CarriedCount, 2,
+                "Iki E'ye basmalik iki kutu alinamadi; oyuncu kutu tasima "
+                + "akisi oynanamaz.");
+
+            for (int b = 0; b < _courier.CarriedCount; b++)
+            {
+                _courier.transform.position = _table.transform.position
+                    + new Vector3(0f, 0.1f, 1.8f);
+                yield return null;
+                yield return null;
+
+                int guard = 0;
+                while (guard < 40 && !_courier.CarriedParcels[b].IsPackaged)
+                {
+                    _courier.TryInteract();
+                    _root.Delivery.Tick(2.5f, false);
+                    guard++;
+                    yield return null;
+                }
+                Assert.IsTrue(_courier.CarriedParcels[b].IsPackaged,
+                    "Kutu " + b + " paketlenemedi.");
+            }
+        }
         [UnityTest]
         public IEnumerator PaketlenmisKargoBisikleteYukleniyor()
         {

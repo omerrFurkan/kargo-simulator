@@ -75,25 +75,33 @@ namespace KargoSim.Player
         {
             if (!CanInteract(courier)) return;
 
-            // Tek E ile EL DOLANA KADAR al. Once sadece bir kutu
-            // aliniyordu; oyuncu "3 kutu biriktir" diye umuyordu ama
-            // E'ye uc kez basmak zorundaydi.
-            int taken = 0;
+            // ASAMA 15: TEK KUTU al.
+            //
+            // Once burasi "elde dolana kadar" aliyordu: oyuncu 3 kutuyla
+            // cikip masaya gidiyor, paketleme 18 E basisi suruyor ve
+            // "tek tek al" mumkun degildi. Brief bunu acikca istiyordu.
+            //
+            // Artik her E tek kutu alir; istiyorsa oyuncu E'ye tekrar
+            // basar. Bu, oyuncunun yuruyerek kutuyu istedigi yere
+            // goturmesini mumkun kilar.
+            Parcel taken = null;
             var available = _cargo.Manifest.Available;
 
-            for (int i = 0; i < available.Count && courier.CanCarryMore; i++)
+            for (int i = 0; i < available.Count; i++)
             {
                 if (available[i] == null) continue;
-                if (!courier.PickUp(available[i])) continue;
+                if (!courier.PickUp(available[i])) break;
 
                 _taken.Add(available[i].Id);
-                taken++;
+                taken = available[i];
+                break;
             }
 
-            if (taken > 0)
+            if (taken != null)
             {
                 courier.PlayAction("pick-up", 0.4f);
-                Debug.Log("[ShopParcelPile] " + taken + " kutu alindi: " + courier.CarriedCount + " elde.");
+                Debug.Log("[ShopParcelPile] Kutu alindi: " + taken.Label
+                          + " (elde " + courier.CarriedCount + ")");
             }
 
             Refresh();
