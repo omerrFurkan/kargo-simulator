@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using KargoSim.Cargo;
 using KargoSim.Core;
 using KargoSim.Delivery;
