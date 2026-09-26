@@ -44,6 +44,12 @@ namespace KargoSim.Tests.EditMode
 
             _config = ScriptableObject.CreateInstance<GameConfig>();
             _config.parcelsPerDay = 8;
+
+            // Bu sinif Dunya ETKILESIMINI olcer (kapi, depo, HUD). Buradaki
+            // akis "raf -> arac -> kapi" seklinde dogrudan ham kargoyu
+            // yukler; paketleme zorunlu olsaydi bu yol kapanirdi. Paketleme
+            // kurali PackagingSystemTests'te ayri test ediliyor.
+            _config.requiresPackaging = false;
             _config.destinationCount = 3;
             _config.baseDeliverySeconds = 100f;
 

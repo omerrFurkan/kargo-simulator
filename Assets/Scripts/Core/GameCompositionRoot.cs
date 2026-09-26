@@ -69,6 +69,7 @@ namespace KargoSim.Core
         private Transform _playerVehicleTransform;
         private bool _playerPaused;
         private Mission.MissionSystem _missions;
+        private Cargo.PackagingSystem _packaging;
 
         public GameConfig Config => config;
         public GameClock Clock => _clock;
@@ -137,6 +138,11 @@ namespace KargoSim.Core
             }
 
             _cargo = new CargoSystem(config, parcelTypes, playerVehicle);
+
+            // Paketleme sistemi kargo sisteminden SONRA kurulur: manifest
+            // `requiresPackaging` kuralini zaten okuyor, PackagingSystem
+            // de ayni bayragi kendi `Required` alanina alir.
+            _packaging = new Cargo.PackagingSystem(config.requiresPackaging);
         }
 
         private void CreateDeliverySystem()
@@ -261,6 +267,18 @@ namespace KargoSim.Core
 
             var door = FindFirstObjectByType<Player.AddressDoor>();
             if (door != null) door.Configure(_delivery, courier);
+
+            // Paketleme masasi. Zaman kaynagi OLARAK SIMULASYON SAATI
+            // veriliyor, Time.time degil: gun saati duraklatildiginda
+            // (menu, odak kaybi) masadaki is de durmali. Aksi halde
+            // oyuncu menuyu acinca kutu kendi kendine bitiyor.
+            var packingTable = FindFirstObjectByType<Player.PackingTable>();
+            if (packingTable != null && _packaging != null)
+            {
+                Transform work = packingTable.transform.Find("WorkVisual");
+                packingTable.Configure(_packaging, courier, work,
+                    () => _delivery != null ? _delivery.Elapsed : 0f);
+            }
         }
 
         /// <summary>
@@ -299,6 +317,7 @@ namespace KargoSim.Core
             // bir kez uretiliyordu, 2. gun depoda kargo kalmiyordu.)
             _cargo?.BeginDay(day);
             _delivery?.BeginDay();
+            _packaging?.BeginDay();
 
             // Gunun gorevleri burada secilir: once kargo ve teslimat
             // tazelenir, sonra gorev havuzu gunun tohumuyla kurulur.

@@ -35,6 +35,12 @@ namespace KargoSim.Tests
             _config = ScriptableObject.CreateInstance<GameConfig>();
             _config.parcelsPerDay = 12;
             _config.destinationCount = 14;
+
+            // Kargo sisteminin kendi kurallari (kapasite, yukleme, olay
+            // yayimi) olculuyor; paketleme zorunlulugu baska bir sinifin
+            // konusu (PackagingSystemTests) ve buradaki "yukleme basarili"
+            // varsayimini bozardi.
+            _config.requiresPackaging = false;
             _config.baseDeliverySeconds = 300f;
         }
 

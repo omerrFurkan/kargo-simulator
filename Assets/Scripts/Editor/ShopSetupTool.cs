@@ -130,8 +130,77 @@ namespace KargoSim.EditorTools
 
             trigger.AddComponent<ShopParcelPile>();
 
+            // --- Paketleme masasi (rafin yaninda) ---
+            BuildPackingTable(shop.transform, wood, report);
+
             report.AppendLine("  dukkan     : " + shop.transform.position.ToString("0.0")
                               + "  (" + ShopWidth + "x" + ShopDepth + " m)");
+        }
+
+        // ------------------------------------------------------------------
+        // Paketleme masasi
+        // ------------------------------------------------------------------
+
+        private const string PackingTableName = "PackingTable";
+        private const string PackingWorkRootName = "WorkVisual";
+
+        /// <summary>
+        /// Paketleme masasini kurar: rafin sag on tarafinda, oyuncunun
+        /// dogrudan yuruyerek erisebilecegi bir konum.
+        ///
+        /// TODO(agent): GameCompositionRoot baglantisi ayrica eklenecek
+        /// PackingTable.Configure(packaging, courier, "WorkVisual", timeProvider)
+        /// cagrisi CompositionRoot tarafinda yapilacak. Bu arac yalnizca
+        /// NESNEYI kurar; sistemler calisma aninda dogar.
+        /// </summary>
+        private static void BuildPackingTable(Transform shop, Material wood, StringBuilder report)
+        {
+            // Eskiyi temizle: menu tekrar calistirilabilir olmali.
+            Transform stale = shop.Find(PackingTableName);
+            if (stale != null) Object.DestroyImmediate(stale.gameObject);
+
+            var table = new GameObject(PackingTableName);
+            table.transform.SetParent(shop, false);
+
+            // Konum: raf arka duvarda (local z = -2.4) ve merkezde. Masa
+            // onun sag-inde ve biraz onde; oyuncu rafla mesa arasinda
+            // ikisini de tek noktada degil, "raf -> masa" yonunde
+            // karsilasir.
+            table.transform.localPosition = new Vector3(2.8f, 0f, -1.2f);
+            table.transform.localRotation = Quaternion.identity;
+
+            // --- Gorsel: tabla + dort bacak (hepsi collider'siz) ---
+            CreateBox("TableTop", table.transform, new Vector3(0f, 0.9f, 0f),
+                new Vector3(1.8f, 0.12f, 1.0f), wood);
+
+            CreateBox("TableLeg_A", table.transform, new Vector3(-0.8f, 0.45f, 0.4f),
+                new Vector3(0.12f, 0.9f, 0.12f), wood);
+            CreateBox("TableLeg_B", table.transform, new Vector3(0.8f, 0.45f, 0.4f),
+                new Vector3(0.12f, 0.9f, 0.12f), wood);
+            CreateBox("TableLeg_C", table.transform, new Vector3(-0.8f, 0.45f, -0.4f),
+                new Vector3(0.12f, 0.9f, 0.12f), wood);
+            CreateBox("TableLeg_D", table.transform, new Vector3(0.8f, 0.45f, -0.4f),
+                new Vector3(0.12f, 0.9f, 0.12f), wood);
+
+            // Kargonun cizilecegi yuzey. CompositionRoot bu cocugu bulup
+            // PackingTable.Configure'in ucuncu parametresine gecirir.
+            var work = new GameObject(PackingWorkRootName);
+            work.transform.SetParent(table.transform, false);
+            work.transform.localPosition = new Vector3(0f, 0.97f, 0f);
+
+            // Etkilesim hacmi: masa govdesi + onundeki bos alan. Raf ve
+            // adres kapisiyla ayni kurulum: normal BoxCollider, isTrigger
+            // ACILIR (ScanForFocus QueryTriggerInteraction.Collide ile
+            // tetikleyicileri de yakalar).
+            var box = table.AddComponent<BoxCollider>();
+            box.isTrigger = true;
+            box.size = new Vector3(2.2f, 1.8f, 2.2f);
+            box.center = new Vector3(0f, 0.9f, 0.4f);
+
+            table.AddComponent<PackingTable>();
+
+            report.AppendLine("  paketleme  : " + PackingTableName
+                              + " yerel (" + table.transform.localPosition + ")");
         }
 
         // ------------------------------------------------------------------

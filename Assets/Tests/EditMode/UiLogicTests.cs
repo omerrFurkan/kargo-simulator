@@ -43,6 +43,10 @@ namespace KargoSim.Tests
             _config = ScriptableObject.CreateInstance<GameConfig>();
             _config.parcelsPerDay = 6;
             _config.destinationCount = 3;
+
+            // Depo paneli ve HUD, kargonun ARA YUKLEME yolunu dogrudan
+            // dener (paketleme adimi bu sinifin konusu degil).
+            _config.requiresPackaging = false;
             _config.baseDeliverySeconds = 100f;
             _config.dayLengthSeconds = 300f;
             _config.startHour = 8f;

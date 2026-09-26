@@ -445,6 +445,11 @@ namespace KargoSim.Tests
             _config = ScriptableObject.CreateInstance<GameConfig>();
             _config.parcelsPerDay = 4;
             _config.destinationCount = 2;
+
+            // Bu sinif BASARI/hasar oranlarini olcer. Paketleme zorunlu
+            // olsaydi kargolar araca hic giremez ve oran testleri bos
+            // kargoyla calisirdi.
+            _config.requiresPackaging = false;
             _config.baseDeliverySeconds = 100f;
 
             _vehicle = ScriptableObject.CreateInstance<VehicleDefinition>();

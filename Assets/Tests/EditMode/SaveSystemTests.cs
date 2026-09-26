@@ -40,6 +40,11 @@ namespace KargoSim.Tests
 
             _config = ScriptableObject.CreateInstance<GameConfig>();
             _config.parcelsPerDay = 8;
+
+            // Kayit testi kargo DURUMUNUN round-trip'ini olcer, paketlemeyi
+            // degil. Zorunlu paketleme, yuklenen kargolari "paketlenmemis"
+            // sayip kayit dogrulamasini anlamsizlastirir.
+            _config.requiresPackaging = false;
             _config.destinationCount = 10;
             _config.baseDeliverySeconds = 300f;
 

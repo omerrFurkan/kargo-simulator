@@ -38,6 +38,10 @@ namespace KargoSim.Cargo
 
             _generator = new ParcelGenerator(types, config.destinationCount, config.baseDeliverySeconds);
 
+            // Paketleme kurali manifest'e aktarilir: "bu kargo araca girebilir
+            // mi" sorusunun tek sahibi manifest olmali.
+            _manifest.RequiresPackaging = config.requiresPackaging;
+
             ApplyVehicleCapacity(vehicle);
         }
 

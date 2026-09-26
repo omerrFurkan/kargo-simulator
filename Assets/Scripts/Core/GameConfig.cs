@@ -42,6 +42,11 @@ namespace KargoSim.Core
                  "adrese atanir. Gercek koordinatlar Aşama 4'te baglanir.")]
         [Range(1, 60)] public int destinationCount = 14;
 
+        [Header("Paketleme")]
+        [Tooltip("Kapaliysa ham kargo dogrudan araca yuklenebilir (eski akis). " +
+                 "Acikse kargo once paketleme masasindan gecmelidir.")]
+        public bool requiresPackaging = true;
+
         private void OnValidate()
         {
             if (dayLengthSeconds < 30f) dayLengthSeconds = 30f;

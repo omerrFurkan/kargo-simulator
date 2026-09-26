@@ -18,6 +18,12 @@ namespace KargoSim.EditorTools
     /// sasi collider'i) ve baglantilar (definition, girdi) aynen
     /// korunur; yalnizca GORSEL cocuklar degisir.
     ///
+    /// Neden "truck": once secilen model KAPALI kasa bir kurye van'iydi.
+    /// Arkasina kutu konulabiliyordu ama oyuncu onu GOREMIYORDU: first
+    /// person kamera kabindeydi ve kutu kasa icinde gizliydi. Kenney
+    /// Car Kit'teki "truck" bir PICKUP'tir - arka kasi acik, kutular
+    /// gorsunur. Simdi kutu yukleme somut bir islem.
+    ///
     /// Lisans: Kenney Car Kit, Creative Commons CC0. Ticari kullanima
     /// acik, atif zorunlu degil. Lisans metni License.txt olarak
     /// projeye kopyalanir.
@@ -25,7 +31,7 @@ namespace KargoSim.EditorTools
     public static class KenneyAssetSetup
     {
         private const string KitRoot = "Assets/Art/Kenney/CarKit";
-        private const string DeliveryFbx = KitRoot + "/Models/delivery.fbx";
+        private const string TruckFbx = KitRoot + "/Models/truck.fbx";
         private const string ColormapPath = KitRoot + "/Models/Textures/colormap.png";
         private const string MaterialPath = "Assets/Art/Materials/KenneyCarKit.mat";
 
@@ -50,6 +56,146 @@ namespace KargoSim.EditorTools
             public WheelCollider collider;
         }
 
+        // =================== GECICI OLcum araci (olcum sonrasi silinecek) =====
+
+        [MenuItem("Kargo/Asset/GEcici Model Olcum")]
+        public static void MeasureModelsForSetup()
+        {
+            MeasureModel(KitRoot + "/Models/truck.fbx");
+            MeasureModel(KitRoot + "/Models/wheel-truck.fbx");
+        }
+
+        private static void MeasureModel(string path)
+        {
+            var importer = AssetImporter.GetAtPath(path) as ModelImporter;
+            bool wasReadable = importer != null && importer.isReadable;
+
+            try
+            {
+                if (importer != null && !wasReadable)
+                {
+                    importer.isReadable = true;
+                    importer.SaveAndReimport();
+                }
+
+                AssetDatabase.ImportAsset(path, ImportAssetOptions.ForceSynchronousImport);
+                GameObject prefab = AssetDatabase.LoadAssetAtPath<GameObject>(path);
+                if (prefab == null)
+                {
+                    Debug.LogError("OLCUM: yuklenemedi " + path);
+                    return;
+                }
+
+                var host = new GameObject("MeasureHost");
+                GameObject model = (GameObject)PrefabUtility.InstantiatePrefab(prefab);
+                model.name = "M";
+                model.transform.SetParent(host.transform, false);
+
+                var names = new System.Text.StringBuilder();
+                foreach (Transform t in model.GetComponentsInChildren<Transform>(true))
+                {
+                    if (t == model.transform) continue;
+                    names.Append(t.name).Append(" | ");
+                }
+
+                List<Transform> wheels = FindWheelTransforms(model);
+                TryGetMeshBounds(model, out Bounds raw);
+                string rawSize = raw.size.ToString("0.0000");
+
+                FitModel(model, new StringBuilder());
+                TryGetMeshBounds(model, out Bounds fitted);
+                Bounds b = fitted;
+
+                var report = new StringBuilder();
+                report.AppendLine("### " + path);
+                report.AppendLine("cocuklar : " + names);
+                report.AppendLine("teker    : " + wheels.Count);
+                report.AppendLine("ham      : " + rawSize + "  center " + raw.center.ToString("0.000"));
+                report.AppendLine("olcek    : " + model.transform.localScale.x.ToString("0.0000"));
+                report.AppendLine("nihai    : " + b.size.ToString("0.000") +
+                                  "  min " + b.min.ToString("0.000") +
+                                  "  max " + b.max.ToString("0.000"));
+                ReportDeckSurfaces(model, b, report);
+
+                Debug.Log(report.ToString());
+                Object.DestroyImmediate(host);
+            }
+            finally
+            {
+                if (importer != null && !wasReadable)
+                {
+                    importer.isReadable = false;
+                    importer.SaveAndReimport();
+                }
+            }
+        }
+
+        /// <summary>
+        /// Govde mesh'indeki YUKARI bakan yatay yuzeyleri kume toplar:
+        /// pickup kasasi, kabin tavani, kaput gibi yumusak alanlardir.
+        /// </summary>
+        private static void ReportDeckSurfaces(GameObject model, Bounds fitted, StringBuilder report)
+        {
+            var buckets = new Dictionary<float, float[]>();
+            var keys = new List<float>();
+
+            foreach (MeshFilter f in model.GetComponentsInChildren<MeshFilter>(true))
+            {
+                if (f.sharedMesh == null) continue;
+                if (f.transform.name.ToLowerInvariant().Contains("wheel")) continue;
+
+                Mesh mesh = f.sharedMesh;
+                Vector3[] verts = mesh.vertices;
+                int[] tris = mesh.triangles;
+                Transform owner = f.transform;
+
+                for (int i = 0; i + 2 < tris.Length; i += 3)
+                {
+                    Vector3 a = owner.TransformPoint(verts[tris[i]]);
+                    Vector3 b = owner.TransformPoint(verts[tris[i + 1]]);
+                    Vector3 c = owner.TransformPoint(verts[tris[i + 2]]);
+
+                    Vector3 nrm = Vector3.Cross(b - a, c - a);
+                    float area = nrm.magnitude * 0.5f;
+                    if (area < 0.0005f) continue;
+                    nrm /= area * 2f;
+                    if (nrm.y < 0.85f) continue;   // yalniz yatay yukari yuzeyler
+
+                    Vector3 mid = (a + b + c) / 3f;
+                    float key = Mathf.Round(mid.y / 0.03f) * 0.03f;
+
+                    if (!buckets.TryGetValue(key, out float[] acc))
+                    {
+                        acc = new[] { 0f, float.MaxValue, float.MinValue, float.MaxValue, float.MinValue };
+                        buckets[key] = acc;
+                        keys.Add(key);
+                    }
+
+                    acc[0] += area;
+                    if (mid.x < acc[1]) acc[1] = mid.x;
+                    if (mid.x > acc[2]) acc[2] = mid.x;
+                    if (mid.z < acc[3]) acc[3] = mid.z;
+                    if (mid.z > acc[4]) acc[4] = mid.z;
+                }
+            }
+
+            keys.Sort();
+            keys.Reverse();
+
+            report.AppendLine("yatay yukari yuzeyler (y | alan m2 | x araligi | z araligi):");
+            for (int i = 0; i < keys.Count && i < 14; i++)
+            {
+                float[] a = buckets[keys[i]];
+                if (a[0] < 0.02f) continue;
+                report.AppendLine("  y=" + keys[i].ToString("0.00") +
+                                  "  alan=" + a[0].ToString("0.00") +
+                                  "  x[" + a[1].ToString("0.00") + "," + a[2].ToString("0.00") + "]" +
+                                  "  z[" + a[3].ToString("0.00") + "," + a[4].ToString("0.00") + "]");
+            }
+        }
+
+        // =================== GECICI OLcum araci sonu =========================
+
         [MenuItem("Kargo/Asset/Kenney Kurye Aracini Kur", priority = 2)]
         public static void BuildVehicleModel()
         {
@@ -57,14 +203,14 @@ namespace KargoSim.EditorTools
             {
                 Debug.LogError(
                     "[Kargo] Kenney Car Kit bulunamadi.\n" +
-                    "Beklenen: " + DeliveryFbx + "\n" +
+                    "Beklenen: " + TruckFbx + "\n" +
                     "Paketi indirip " + KitRoot + " altina acin. Kaynak: " + DownloadPage);
                 return;
             }
 
             // 1) FBX'in importu. Ayar degistirilince yeniden import
             //    gerekir, bu yuzden importu ONCE tamamla.
-            AssetDatabase.ImportAsset(DeliveryFbx,
+            AssetDatabase.ImportAsset(TruckFbx,
                 ImportAssetOptions.ImportRecursive |
                 ImportAssetOptions.ForceUpdate |
                 ImportAssetOptions.ForceSynchronousImport);
@@ -73,10 +219,10 @@ namespace KargoSim.EditorTools
             ConfigureTextureImporter();
 
             // 2) Reimport sonrasi referanslar gecersizlesir: yeniden yukle.
-            GameObject modelPrefab = AssetDatabase.LoadAssetAtPath<GameObject>(DeliveryFbx);
+            GameObject modelPrefab = AssetDatabase.LoadAssetAtPath<GameObject>(TruckFbx);
             if (modelPrefab == null)
             {
-                Debug.LogError("[Kargo] FBX yuklenemedi: " + DeliveryFbx);
+                Debug.LogError("[Kargo] FBX yuklenemedi: " + TruckFbx);
                 return;
             }
 
@@ -406,7 +552,7 @@ namespace KargoSim.EditorTools
 
         private static void ConfigureModelImporter()
         {
-            var importer = AssetImporter.GetAtPath(DeliveryFbx) as ModelImporter;
+            var importer = AssetImporter.GetAtPath(TruckFbx) as ModelImporter;
             if (importer == null) return;
 
             // Gömülü materyal kullanmayalim: URP/Lit tabanli kendi
@@ -491,7 +637,7 @@ namespace KargoSim.EditorTools
 
         public static bool IsKitAvailable()
         {
-            return File.Exists(DeliveryFbx);
+            return File.Exists(TruckFbx);
         }
 
         /// <summary>

@@ -32,6 +32,13 @@ namespace KargoSim.Tests
 
             _config = ScriptableObject.CreateInstance<GameConfig>();
             _config.parcelsPerDay = 8;
+
+            // Bu sinif TESLIMAT kurallarini olcer, paketlemeyi degil.
+            // Paketleme zorunlu birakilirsa ham kargo araca giremez ve
+            // buradaki her yukleme denemesi sessizce false doner; testler
+            // "0 kargo yuklendi" diye kacar. Paketleme kuralinin kendi
+            // testleri PackagingSystemTests'te.
+            _config.requiresPackaging = false;
             _config.destinationCount = 3;
             _config.baseDeliverySeconds = 100f;
 

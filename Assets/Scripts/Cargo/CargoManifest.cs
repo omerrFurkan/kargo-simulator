@@ -58,6 +58,34 @@ namespace KargoSim.Cargo
         /// <summary>Aracin kapasitesini ayarlar (arac degistiginde cagrilir).</summary>
         public void SetCapacity(CargoCapacity capacity) => Capacity = capacity;
 
+        /// <summary>
+        /// Paketleme zorunlu mu? Aciksa yalnizca <see cref="ParcelState.Ready"/>
+        /// kargolar araca yuklenebilir.
+        /// </summary>
+        /// <remarks>
+        /// Neden manifest'te: kapasite de manifest'in isidir, "bu kargo
+        /// araca girebilir mi" sorusu da ayni yere ait. Kural UI'da
+        /// degil, TEK yerde durmali; yoksa depo paneli bir yere, arac
+        /// noktasi baska yere bakip biri unutur.
+        /// </remarks>
+        public bool RequiresPackaging { get; set; }
+
+        /// <summary>
+        /// Kargo araca yuklenebilir mi? Sadece sorar.
+        ///
+        /// Zamanlama ve kapsite bakmadan SADECE uygunluk doner; UI ipucu
+        /// vermek icin kullanilir.
+        /// </summary>
+        public bool CanLoad(Parcel parcel)
+        {
+            if (parcel == null) return false;
+            if (!parcel.IsActive) return false;
+
+            if (RequiresPackaging && !parcel.IsPackaged) return false;
+
+            return Fits(parcel);
+        }
+
         /// <summary>Depodaki listeyi degistirir (gun basinda cagrilir).</summary>
         /// <remarks>
         /// DUZELTME (Hata 2): Once _available.Clear() SONRA UnloadAll()
@@ -186,7 +214,11 @@ namespace KargoSim.Cargo
         {
             if (parcel == null) return false;
             if (!Capacity.IsValid) return false;
-            if (parcel.State != ParcelState.WaitingInDepot) return false;
+            if (parcel.State != ParcelState.Ready && parcel.State != ParcelState.WaitingInDepot)
+                return false;
+
+            // Paketleme zorunluysa ham kargo araca giremez.
+            if (RequiresPackaging && !parcel.IsPackaged) return false;
 
             if (!Fits(parcel)) return false;
 

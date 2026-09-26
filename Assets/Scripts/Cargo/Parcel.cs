@@ -21,6 +21,24 @@ namespace KargoSim.Cargo
         /// Depoya geri donmez: ne yuklenebilir ne de teslim edilebilir.
         /// </summary>
         Discarded = 3,
+
+        // --- Asama 12: Paketleme ---
+        //
+        // DIKKAT: asagidaki degerler SIRA SONUNA eklendi ve bir daha
+        // degistirilmeyecek. Save dosyalari durumu duz sayi olarak yaziyor
+        // (SaveSystem: state = (int)parcel.State). Ortaya bir deger eklense
+        // yeni kod eski kaydi "bilinmeyen" diye reddeder ve oyuncunun ilerlemesi
+        // kaybolurdu.
+
+        /// <summary>
+        /// Paketleme masasi basinda, arada bir adimda.
+        /// </summary>
+        Packaging = 4,
+
+        /// <summary>
+        /// Paketlendi ve teslimata hazir. Araca yuklenebilir.
+        /// </summary>
+        Ready = 5,
     }
 
     /// <summary>
@@ -67,6 +85,85 @@ namespace KargoSim.Cargo
         /// <summary>Teslim edildi mi?</summary>
         public bool IsDelivered => State == ParcelState.Delivered;
 
+        // ------------------------------------------------------------------
+        // Paketleme (Asama 12)
+        // ------------------------------------------------------------------
+
+        /// <summary>
+        /// Paketlemede kaldigi adim. Yeni kargo <see cref="PackagingStep.None"/> ile baslar.
+        /// </summary>
+        public PackagingStep PackagingProgress { get; private set; } = PackagingStep.None;
+
+        /// <summary>
+        /// Paketlemeye baslandigi an (sistem saati, saniye). -1 = baslanmadi.
+        ///
+        /// Neden tutuluyor: oyuncu masada birakip giderse "bu kutu ne kadar
+        /// sureydi duruyor" bilgisi kaybolurdu. Suresi dolan is asilir.
+        /// </summary>
+        public float PackagingStartedTime { get; private set; } = -1f;
+
+        /// <summary>Paket teslimata hazir mi?</summary>
+        public bool IsPackaged => PackagingSteps.IsReady(PackagingProgress);
+
+        /// <summary>Paketleme masasi basinda mi?</summary>
+        public bool IsBeingPackaged => State == ParcelState.Packaging;
+
+        /// <summary>Araca yuklenebilir mi? (paketlenmisse)</summary>
+        public bool IsLoadable => State == ParcelState.Ready;
+
+        /// <summary>0..1 arasi paketleme ilerlemesi.</summary>
+        public float PackagingProgress01 => PackagingSteps.Progress01(PackagingProgress);
+
+        /// <summary>
+        /// Paketlemeye baslandi. Zaten baslanmistiysa hicbir sey olmaz
+        /// (cift cagri ikinci kez sureyi sifirlamamali).
+        /// </summary>
+        public void MarkPackagingStarted(float systemTime)
+        {
+            if (PackagingProgress != PackagingStep.None) return;
+
+            State = ParcelState.Packaging;
+            PackagingStartedTime = systemTime;
+        }
+
+        /// <summary>
+        /// Bir adim ilerlet. Sadece SIRADAKI adima gecilebilir; atlayarak
+        /// ilerleme kurali PackagingSystem'de engellenir.
+        /// </summary>
+        /// <returns>Adim ilerlediyse true, son adimdaysa false.</returns>
+        public bool AdvancePackaging()
+        {
+            if (PackagingProgress == PackagingStep.None)
+            {
+                State = ParcelState.Packaging;
+                if (PackagingStartedTime < 0f) PackagingStartedTime = 0f;
+            }
+
+            if (PackagingSteps.IsReady(PackagingProgress)) return false;
+
+            PackagingProgress = PackagingSteps.Next(PackagingProgress);
+
+            if (PackagingSteps.IsReady(PackagingProgress)) MarkPackagingFinished();
+            return true;
+        }
+
+        /// <summary>Paket tamamlandi: durum Ready olur.</summary>
+        private void MarkPackagingFinished()
+        {
+            State = ParcelState.Ready;
+        }
+
+        /// <summary>
+        /// Paketlemeyi bastan baslat (belki masayi temizledik).
+        /// </summary>
+        public void ResetPackaging()
+        {
+            PackagingProgress = PackagingStep.None;
+            PackagingStartedTime = -1f;
+            if (State == ParcelState.Packaging || State == ParcelState.Ready)
+                State = ParcelState.WaitingInDepot;
+        }
+
         /// <summary>
         /// Hala oyunda mi (depo, arac veya teslim)?
         ///
@@ -112,9 +209,16 @@ namespace KargoSim.Cargo
         public void MarkDelivered() => State = ParcelState.Delivered;
 
         /// <summary>Depoya geri alindi (gun sonu bos arac vb.).</summary>
+        /// <remarks>
+        /// DIKKAT: paketlenmis kargo depoya donerken <c>Ready</c> durumunu
+        /// KORUR. Aksi halde oyuncu aracindan bosalttigi bir paketi tekrar
+        /// yukleyemezdi: kartonu kesip bantlamayi yeniden yapmak zorunda
+        /// kalirdi, oysa o is bir kez yapildi. Paketleme isinin izi kargoda
+        /// kalir.
+        /// </remarks>
         public void MarkReturnedToDepot()
         {
-            State = ParcelState.WaitingInDepot;
+            State = IsPackaged ? ParcelState.Ready : ParcelState.WaitingInDepot;
             TimeLoaded = -1f;
         }
 

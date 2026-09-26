@@ -115,7 +115,48 @@ namespace KargoSim.Tests.PlayMode
             Assert.Greater(availableAfterPickup, 0,
                 "Kargo raftan alinca listeden DUSMEMELI; kargo kaybolmamali.");
 
-            // --- 5. Araca koy ---
+            // --- 5. Paketleme masasina git, kargoyu paketle ---
+            //
+            // VERTICAL SLICE: paketleme teslimattan ONCE gelir. Oyuncu
+            // raftan aldigi kutuyu ham haliyle araca goturemez; once
+            // kartonu kesip katlayip bantlamasi gerekir.
+            var packingTable = Object.FindFirstObjectByType<Player.PackingTable>();
+            Assert.IsNotNull(packingTable,
+                "Paketleme masasi yok. Menu: Kargo/0. HER SEYI KUR");
+
+            // Paketlemenin 6 adimi var ve en uzun adim 2.0 saniye
+            // suruyor. Her dongude simulasyonu en uzun adimdan fazla
+            // ilerletip E'ye basiyoruz: boylece "kutu hazir mi" diye
+            // sormadan da ilerleme KESINLIKLE olur. Boylece test, adim
+            // surelerine bagli kalmaz; sureler degisse de kirilmaz.
+            const float stepBudget = 2.5f;
+            int packagingSteps = 0;
+
+            while (packagingSteps < 40)
+            {
+                bool hasRaw = false;
+                for (int i = 0; i < courier.CarriedParcels.Count; i++)
+                {
+                    if (!courier.CarriedParcels[i].IsPackaged) { hasRaw = true; break; }
+                }
+
+                if (!hasRaw) break;
+
+                // Saat ilerlesin: kurye ayaktayken arac rota takip etmez,
+                // bu yuzden sadece sure sayaci ilerler.
+                root.Delivery.Tick(stepBudget, false);
+                packingTable.Interact(courier);
+                packagingSteps++;
+                yield return null;
+            }
+
+            Assert.Greater(packagingSteps, 0,
+                "Paketleme adimi hic ilerlemedi; masa etkilesime kapali olabilir.");
+            for (int i = 0; i < courier.CarriedParcels.Count; i++)
+                Assert.IsTrue(courier.CarriedParcels[i].IsPackaged,
+                    "Elindeki tum kutular paketlenmis olmali; ham kargo araca giremez.");
+
+            // --- 6. Araca koy ---
             Assert.IsTrue(vanPoint.CanInteract(courier), "Arac noktasi etkilesime kapali.");
             vanPoint.Interact(courier);
             yield return null;
@@ -125,7 +166,7 @@ namespace KargoSim.Tests.PlayMode
             Assert.Greater(root.Cargo.Manifest.LoadedCount, 0,
                 "Hicbir kargo araca yuklenmedi. Oyuncu oynanamaz.");
 
-            // --- 6. Araca bin (KRITIK ADIM) ---
+            // --- 7. Araca bin (KRITIK ADIM) ---
             // Once burada ExitVehicle cagriliyordu ve oyuncu bir daha
             // binemiyordu. Bu adim kirmizi olmamali.
             // Not: E kargoyla ilgilenir, binme F tusudur. Test de
@@ -136,7 +177,7 @@ namespace KargoSim.Tests.PlayMode
                 "Araca binilebilmeli. (Bu adim daha once arac birakmayi "
                 + "cagriyordu ve oyun 2. adimda bitiyordu.)");
 
-            // --- 7. Adrese git ---
+            // --- 8. Adrese git ---
             var delivery = root.Delivery;
             delivery.VehiclePosition = delivery.Route[0].Position;
             delivery.Tick(0.1f, false);
@@ -149,7 +190,7 @@ namespace KargoSim.Tests.PlayMode
             int pendingAtStop = stop.PendingCount;
             Assert.Greater(pendingAtStop, 0, "Durakta bekleyen kargo yok.");
 
-            // --- 8. Adreste arac birak, kargoyu al, kapidan teslim et ---
+            // --- 9. Adreste arac birak, kargoyu al, kapidan teslim et ---
             courier.ExitVehicle(vanPoint.ExitSpot());
             yield return null;
             Assert.IsFalse(courier.IsInVehicle, "Adreste arac birakilmali.");
@@ -191,7 +232,7 @@ namespace KargoSim.Tests.PlayMode
                 Core.GameEvents.ParcelDelivered -= onDelivered;
             }
 
-            // --- 9. Sonuc: oyuncu para kazandi mi? ---
+            // --- 10. Sonuc: oyuncu para kazandi mi? ---
             int moneyAfter = root.Progress != null ? (int)root.Progress.Money : 0;
             Assert.Greater(moneyAfter, moneyBefore,
                 "Kargo teslim edildi ama PARA ARTMADI. Oyuncu hic kazanamaz.");
@@ -204,9 +245,10 @@ namespace KargoSim.Tests.PlayMode
             Assert.Less(stop.PendingCount, pendingAtStop,
                 "Teslimden sonra durakta bekleyen kargo sayisi azalmali.");
 
-            Debug.Log("[Kabul] Akis tamam: in -> al -> koy -> bin -> adres -> al -> teslim. "
-                      + "Para: " + moneyBefore + " -> " + moneyAfter
-                      + ", elde kalan: " + courier.CarriedCount);
+            Debug.Log("[Kabul] Akis tamam: in -> al -> paketle (" + packagingSteps
+                        + " adim) -> koy -> bin -> adres -> al -> teslim. "
+                        + "Para: " + moneyBefore + " -> " + moneyAfter
+                        + ", elde kalan: " + courier.CarriedCount);
         }
 
     }

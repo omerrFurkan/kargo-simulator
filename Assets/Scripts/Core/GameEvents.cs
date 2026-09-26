@@ -91,6 +91,38 @@ namespace KargoSim.Core
         /// <summary>Gun sonu ozeti hazir.</summary>
         public static event Action<Player.DaySummary> DaySummaryReady;
 
+        // ---- Paketleme (Asama 12) ----
+
+        /// <summary>Kargo paketleme masasina kondu.</summary>
+        public static event Action<Cargo.Parcel> PackagingStarted;
+
+        /// <summary>Kargo masadan bosaltildi (ilerleme KORUNUR).</summary>
+        public static event Action<Cargo.Parcel> PackagingAbandoned;
+
+        /// <summary>
+        /// Bir paketleme adimi bitti.
+        /// Parametreler: (kargo, biten adim, yeni adim).
+        /// </summary>
+        public static event Action<Cargo.Parcel, Cargo.PackagingStep, Cargo.PackagingStep>
+            PackagingStepCompleted;
+
+        /// <summary>Kargo tamamen paketlendi ve teslimata hazir.</summary>
+        public static event Action<Cargo.Parcel> ParcelPackaged;
+
+        public static void RaisePackagingStarted(Cargo.Parcel parcel) =>
+            PackagingStarted?.Invoke(parcel);
+
+        public static void RaisePackagingAbandoned(Cargo.Parcel parcel) =>
+            PackagingAbandoned?.Invoke(parcel);
+
+        public static void RaisePackagingStepCompleted(Cargo.Parcel parcel,
+                                                      Cargo.PackagingStep completed,
+                                                      Cargo.PackagingStep current) =>
+            PackagingStepCompleted?.Invoke(parcel, completed, current);
+
+        public static void RaiseParcelPackaged(Cargo.Parcel parcel) =>
+            ParcelPackaged?.Invoke(parcel);
+
         public static void RaisePayoutApplied(Economy.Payout payout,
                                               Delivery.DeliveryOutcome outcome) =>
             PayoutApplied?.Invoke(payout, outcome);
@@ -121,6 +153,10 @@ namespace KargoSim.Core
             PayoutApplied = null;
             LevelUp = null;
             DaySummaryReady = null;
+            PackagingStarted = null;
+            PackagingAbandoned = null;
+            PackagingStepCompleted = null;
+            ParcelPackaged = null;
         }
     }
 }
