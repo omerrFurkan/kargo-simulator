@@ -259,16 +259,27 @@ namespace KargoSim.UI
 
         private void OnNPCAnswered(int destinationId, string npcName, int code)
         {
-            // code BILINCCI OLARAK KULLANILMAZ ve saklanmaz: dogru kod
-            // ekrana yazilirsa dogrulamanin anlami kalmaz. Tek metin
-            // kaynagi oyuncunun tus basmalari (_entry).
+            // KOD ARTIK GIZLENMIYOR (Asama 13 duzeltmesi).
+            //
+            // Onceki kurguda kod ekrana hic yazilmazdi ve ses de yoktu:
+            // oyuncu 0000-9999 arasinda tahmin ediyordu. Bu bir teslimat
+            // kodu degil, bilgisayar kiriciydi.
+            //
+            // Simdi NPC kodu hem SESLE (AudioDirector perde olarak soyler)
+            // hem de NPC satirinda YAZILI olarak verir. Yazili gosterim
+            // oyuncunun 4 haneyi ezberleme yukunu kaldirir; ses ise
+            // "biri bana bir kod soyledi" hissini verir.
+            //
+            // DIKKAT: gosterilen kod gecici bir satirdir. GIRIS kutulari
+            // (_entry) yine de oyuncunun kendi basinindan dolar; yani
+            // oyuncu yalnizca gorup doldurur, otomatik doldurulmaz.
             Open();
 
             if (titleText != null) titleText.text = "TESLIMAT KODU";
 
             if (npcLineText != null)
                 npcLineText.text = (string.IsNullOrEmpty(npcName) ? FallbackNpcName : npcName)
-                                   + " size bir kod soyledi";
+                                   + " size bir kod soyledi: " + DeliveryCode.Format(code);
 
             _entry = string.Empty;
             ShowMessage(string.Empty, UITheme.TextPrimary);

@@ -25,8 +25,9 @@ namespace KargoSim.Audio
         /// <summary>Karakter adimi. Kis filtrelenmis gurultu patlamasi.</summary>
         AyakSesi = 2,
 
-        /// <summary>Kargo zamaninda teslim edildi. Yukselen iki nota.</summary>
-        TeslimBasarili = 3,
+            /// <summary>Kargo zamaninda teslim edildi. Yukselen iki nota.</summary>
+            TeslimBasarili = 3,
+
 
         /// <summary>Kargo teslim edilemedi (gun sonu). Dusen iki nota.</summary>
         TeslimBasarisiz = 4,
@@ -36,6 +37,18 @@ namespace KargoSim.Audio
 
         /// <summary>Yeni seviye. Dortlu yukselen arpej.</summary>
         SeviyeYukseldi = 6,
+
+        /// <summary>
+        /// Kapi calindi. Iki kuru vurus: tok bir "tok" ve yumrugun
+        /// bosluSa degenmesi. Asama 13.
+        /// </summary>
+        KapiCal = 7,
+
+        /// <summary>
+        /// NPC kapidi acti ve selam verdi. Iki notali yumusakYukselis.
+        /// Asama 13.
+        /// </summary>
+        NpcSelam = 8,
 
         /// <summary>
         /// Arac motoru. DONGUSEL: PlayOneShot ile degil, ozel bir AudioSource
@@ -68,7 +81,7 @@ namespace KargoSim.Audio
     public static class ProceduralAudio
     {
         /// <summary>Ses etiketi sayisi (enum boyutu).</summary>
-        public const int CueCount = 8;
+        public const int CueCount = 10;
 
         /// <summary>
         /// Ornekleme hizi. 22050 Hz (CD yarisi) bilincli bir tercih:
@@ -98,6 +111,8 @@ namespace KargoSim.Audio
                 case AudioCue.TeslimBasarisiz: return 0.40f;
                 case AudioCue.ParaKazanildi: return 0.40f;
                 case AudioCue.SeviyeYukseldi: return 0.60f;
+        case AudioCue.KapiCal: return 0.26f;
+        case AudioCue.NpcSelam: return 0.34f;
                 default: return 0.50f;   // AracMotoru: dongu tamponu
             }
         }
@@ -136,9 +151,15 @@ namespace KargoSim.Audio
                 case AudioCue.ParaKazanildi:
                     SynthArpeggio(data, new[] { 784f, 988f, 1319f }, 0.11f, 0.16f, 0.28f, 0.3f);
                     break;
-                case AudioCue.SeviyeYukseldi:
-                    SynthArpeggio(data, new[] { 523f, 659f, 784f, 1047f }, 0.13f, 0.20f, 0.28f, 0.3f);
-                    break;
+        case AudioCue.SeviyeYukseldi:
+                        SynthArpeggio(data, new[] { 523f, 659f, 784f, 1047f }, 0.13f, 0.20f, 0.28f, 0.3f);
+                        break;
+                    case AudioCue.KapiCal:
+                        SynthKnock(data);
+                        break;
+                    case AudioCue.NpcSelam:
+                        SynthTwoNotes(data, 392f, 523f, 0.14f, 0.24f, 0.26f, 0.3f);
+                        break;
                 default:
                     SynthEngineLoop(data);
                     break;
@@ -173,6 +194,145 @@ namespace KargoSim.Audio
             return clip;
         }
 
+        /// <summary>
+        /// Yeni sinif statik onbellekler: teslimat kodu tonlari.
+        /// </summary>
+        private sealed class CodeToneCache
+        {
+            /// <summary>
+            /// Kod -> klip. BAYAT ve SIRALI silme yerine kucuk bir havuz:
+            /// bir gunde 12 kargo, ayni kod bir kez uretilir. Havuz sinirli
+            /// tutuluyor ki uzun bir oturumda bellek sismesin.
+            /// </summary>
+            public const int MaxEntries = 16;
+
+            public readonly System.Collections.Generic.Dictionary<int, AudioClip> Clips =
+                new System.Collections.Generic.Dictionary<int, AudioClip>();
+
+            public readonly System.Collections.Generic.Queue<int> Order =
+                new System.Collections.Generic.Queue<int>();
+
+            public void Clear()
+            {
+                foreach (var kv in Clips)
+                {
+                    AudioClip clip = kv.Value;
+                    if (clip == null) continue;
+                    if (Application.isPlaying) Object.Destroy(clip);
+                    else Object.DestroyImmediate(clip);
+                }
+                Clips.Clear();
+                Order.Clear();
+            }
+        }
+
+        private static readonly CodeToneCache _codeTones = new CodeToneCache();
+
+        /// <summary>
+        /// Bir rakamin perdeye eslenmesi: 0 = dusuk, 9 = yuksek.
+        ///
+        /// Neden perde: sesli olarak "dort" demek yerine dOrt FARKLI
+        /// PERDE duyulur ve oyuncu bunu kodun RAKAMI olarak degil,
+        /// SIRAYA KONULACAK bir melodi olarak hatirlar. Eski telefon
+        /// tuslarinin DTMF mantigi da boyledir.
+        ///
+        /// Aralik bilincli: 440 Hz (A4) ile 880 Hz arasinda tam oktav.
+        /// Insan kulaSi bu araligi kolay ayirt eder; cok aralija
+        /// yaymak "yarisi ayni" duyulmasina yol acar.
+        /// </summary>
+        public const float CodeToneLowHz = 440f;
+        public const float CodeToneHighHz = 880f;
+        public const float CodeToneStepSeconds = 0.30f;
+        public const float CodeToneNoteSeconds = 0.16f;
+
+        /// <summary>Rakamin perde frekansi (0..9).</summary>
+        public static float FrequencyForDigit(int digit)
+        {
+            if (digit < 0) digit = 0;
+            if (digit > 9) digit = 9;
+
+            float t = digit / 9f;
+            return Mathf.Lerp(CodeToneLowHz, CodeToneHighHz, t);
+        }
+
+        /// <summary>Kod tonlarinin toplam suresi (saniye).</summary>
+        public static float CodeToneSeconds(int digits) =>
+            Mathf.Max(1, digits) * CodeToneStepSeconds;
+
+        /// <summary>
+        /// NPC'nin soyleyeceSi kod tonunu uretir ve onbellekler.
+        ///
+        /// ONEMLI: uretilen perde sirasi ile <c>Cargo.DeliveryCode</c>'in
+        /// rakamlari BIREBIR ayni olur - ses ile gosterilen kod arasinda
+        /// ayrilma olmaz. Ses bir "tema" degil, kodun kendisidir.
+        /// </summary>
+        public static AudioClip GetCodeToneClip(int code)
+        {
+            AudioClip cached;
+            if (_codeTones.Clips.TryGetValue(code, out cached) && cached != null)
+                return cached;
+
+            int digits = 4;
+            float[] data = new float[Mathf.RoundToInt(SampleRate * CodeToneSeconds(digits))];
+
+            for (int n = 0; n < digits; n++)
+            {
+                // 4827 -> 4, 8, 2, 7
+                int digit = (code / Pow10(digits - 1 - n)) % 10;
+                float freq = FrequencyForDigit(digit);
+
+                int start = Mathf.RoundToInt(SampleRate * CodeToneStepSeconds * n);
+                if (start >= data.Length) break;
+                int count = Mathf.Min(data.Length - start,
+                                      Mathf.RoundToInt(SampleRate * CodeToneNoteSeconds));
+                if (count <= 0) continue;
+
+                AddNote(data, start, freq, count, 0.30f, 9f, 0.45f);
+            }
+
+            var clip = AudioClip.Create("Code_" + code, data.Length, 1, SampleRate, false);
+            clip.SetData(data, 0);
+            clip.hideFlags = HideFlags.DontSave;
+
+            // Havuz sinirini asarsa en eskiyi at (bir gunde 12 kargo
+            // uretilir; 16 yeterli).
+            if (_codeTones.Order.Count >= CodeToneCache.MaxEntries)
+            {
+                int oldest = _codeTones.Order.Dequeue();
+                AudioClip dead;
+                if (_codeTones.Clips.TryGetValue(oldest, out dead))
+                {
+                    if (dead != null)
+                    {
+                        if (Application.isPlaying) Object.Destroy(dead);
+                        else Object.DestroyImmediate(dead);
+                    }
+                    _codeTones.Clips.Remove(oldest);
+                }
+            }
+
+            _codeTones.Clips[code] = clip;
+            _codeTones.Order.Enqueue(code);
+            return clip;
+        }
+
+        /// <summary>
+        /// Su an onbellekte tutulan kod klibi sayisi.
+        ///
+        /// Neden public: havuzun SINIRLI oldugunu test etmek icin.
+        /// Onbellek dogru calisiyorsa bu sayi kac kod uretilirse
+        /// uretilsin sabit kalir. Erisilebilir olmasa bu bir
+        /// "umarim tasmaz" varsayimi olurdu.
+        /// </summary>
+        public static int CodeToneCacheSize => _codeTones.Clips.Count;
+
+        private static int Pow10(int e)
+        {
+            int r = 1;
+            for (int i = 0; i < e; i++) r *= 10;
+            return r;
+        }
+
         /// <summary>Uretilmis tum klipleri yok eder ve onbellegi bosaltir.</summary>
         public static void ReleaseCache()
         {
@@ -184,6 +344,8 @@ namespace KargoSim.Audio
                 else Object.DestroyImmediate(clip);
                 _cache[i] = null;
             }
+
+            _codeTones.Clear();
         }
 
         /// <summary>
@@ -272,6 +434,47 @@ namespace KargoSim.Audio
         /// Iki notali yukselen/dusen figur: ikinci nota tamponun SONUNA
         /// yapistirilir. Boylece sonda bosluk kalmaz ve sure tamamen kullanilir.
         /// </summary>
+        /// <summary>
+        /// Kapi calma: iki kuru vurus.
+        ///
+        /// Yumruk sert oldugu icin kisa ve kuru: hizli attack, hizli
+        /// decay, guclu alakalanma (bozulmus) tasi. Ikinci vurus biraz
+        /// sonra ve biraz kisa - tek yumruk degil, "tok-tok".
+        /// </summary>
+        private static void SynthKnock(float[] d)
+        {
+            float dur = Duration(d);
+
+            // Iki vurus: baslangic ve tam yarida.
+            for (int hit = 0; hit < 2; hit++)
+            {
+                float start = dur * (hit == 0 ? 0f : 0.42f);
+                int s0 = Mathf.RoundToInt(SampleRate * start);
+                int count = Mathf.Min(d.Length - s0,
+                                      Mathf.RoundToInt(SampleRate * 0.16f));
+                if (count <= 0) continue;
+
+                float amp = hit == 0 ? 0.42f : 0.30f;
+
+                for (int i = 0; i < count; i++)
+                {
+                    int index = s0 + i;
+                    if (index < 0 || index >= d.Length) continue;
+
+                    float t = TimeOf(i);
+                    // Cok hizli attack: temas aninda zirve, sonra aninda
+                    // sonum. Yumrugun sesi "tik"tir, "gun" degil.
+                    float env = Mathf.Min(1f, t * 900f) * Mathf.Exp(-t * 34f);
+
+                    // Govde: dusuk frekans. Tirnak: yuksek, kisa.
+                    float body = Mathf.Sin(TwoPi * 148f * t) * Mathf.Exp(-t * 26f);
+                    float slap = Mathf.Sin(TwoPi * 720f * t) * Mathf.Exp(-t * 62f);
+
+                    d[index] += env * (body * 0.8f + slap * 0.35f) * amp;
+                }
+            }
+        }
+
         private static void SynthTwoNotes(float[] d, float first, float second,
                                           float noteSeconds, float decay,
                                           float amp, float brightness)
@@ -641,6 +844,10 @@ namespace KargoSim.Audio
             GameEvents.PayoutApplied += OnPayoutApplied;
             GameEvents.LevelUp += OnLevelUp;
 
+        // Asama 13: kapi calma -> vurus; NPC cevap verdi -> selam + kod.
+        GameEvents.DoorKnocked += OnDoorKnocked;
+        GameEvents.NPCAnswered += OnNpcAnswered;
+
             _subscribed = true;
         }
 
@@ -657,6 +864,8 @@ namespace KargoSim.Audio
             GameEvents.ParcelDelivered -= OnParcelDelivered;
             GameEvents.PayoutApplied -= OnPayoutApplied;
             GameEvents.LevelUp -= OnLevelUp;
+        GameEvents.DoorKnocked -= OnDoorKnocked;
+        GameEvents.NPCAnswered -= OnNpcAnswered;
 
             _subscribed = false;
         }
@@ -702,6 +911,28 @@ namespace KargoSim.Audio
             Emit(AudioCue.SeviyeYukseldi);
         }
 
+        /// <summary>Asama 13 - kapi calindi.</summary>
+        private void OnDoorKnocked(int destinationId)
+        {
+            Emit(AudioCue.KapiCal);
+        }
+
+        /// <summary>
+        /// Asama 13 - NPC kapidi acti ve kodu soyluyor.
+        ///
+        /// <paramref name="code"/> dogrudan <c>AddressDoor</c>'dan gelir ve
+        /// <c>Parcel.DeliveryCode</c> ile ayni degerdir (AddressDoor kodu
+        /// kargodan okur). Burada YENIDEN uretilmez; boylece ses ile
+        /// soylenen kod ile dogrulanan kod ayrilamaz.
+        /// </summary>
+        private void OnNpcAnswered(int destinationId, string npcName, int code)
+        {
+            PlayCue(AudioCue.NpcSelam);
+
+            AudioClip tones = ProceduralAudio.GetCodeToneClip(code);
+            if (_sfx != null && tones != null) _sfx.PlayOneShot(tones, 0.9f);
+        }
+
         private void SuppressCargoCue()
         {
             _lastCargoCueTime = _clock;
@@ -715,6 +946,23 @@ namespace KargoSim.Audio
         /// Cue calar. <see cref="AudioCue.AracMotoru"/> ozel: tek seferlik
         /// efekt degil, donguseldir; motoru acar.
         /// </summary>
+        /// <summary>
+        /// NPC'nin teslimat kodunu sesli soyler.
+        ///
+        /// Sira: once kapi Calinir, sonra selam, sonra kod. Oyuncu
+        /// duyduklarini sirayla hatirlar.
+        /// </summary>
+        public void PlayDoorSequence(int code)
+        {
+            if (_sfx == null) return;
+
+            PlayCue(AudioCue.KapiCal);
+            PlayCue(AudioCue.NpcSelam);
+
+            AudioClip tones = ProceduralAudio.GetCodeToneClip(code);
+            if (tones != null) _sfx.PlayOneShot(tones, 0.9f);
+        }
+
         public void PlayCue(AudioCue cue)
         {
             if (cue == AudioCue.AracMotoru)

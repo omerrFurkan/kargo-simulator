@@ -23,6 +23,48 @@ namespace KargoSim.EditorTools
         private const string DefaultFontPath = "UI/Skin/UISprite.psd";
 
         /// <summary>
+        /// Sahnede EventSystem oldugundan emin olur; yoksa kurar.
+        ///
+        /// NEDEN GEREKLI: <c>GraphicRaycaster</c> tiklamayi yakalar ama
+        /// "tiklama nerede" bilgisine ihtiyac duyar; onu EventSystem
+        /// saglar. EventSystem YOKSA butonlarin <c>onClick</c>
+        /// baglantilari HIC tetiklenmez - ONAYLA'ya fareyle basmak
+        /// sessizce islemsiz kalir.
+        ///
+        /// Projede EventSystem bulunmuyordu; bu yuzden mevcut butonlar
+        /// (depo satirlari) da fareyle calismiyordu, kod paneliyle
+        /// gorunur hale geldi.
+        ///
+        /// StandaloneInputModule: proje LEGACY INPUT MANAGER kullaniyor
+        /// (InputSystem paketi yok). InputSystemUIInputModule
+        /// KULLANILMAZ; eklenirse butonlar calismaz.
+        ///
+        /// Tekrar calistirilabilir: var olan EventSystem'a dokunmaz.
+        /// "Eksik modul" senaryosunu da onler.
+        /// </summary>
+        private static void EnsureEventSystem()
+        {
+            var existing =
+                UnityEngine.Object.FindFirstObjectByType<UnityEngine.EventSystems.EventSystem>();
+
+            if (existing == null)
+            {
+                var go = new GameObject("EventSystem");
+                go.AddComponent<UnityEngine.EventSystems.EventSystem>();
+                go.AddComponent<UnityEngine.EventSystems.StandaloneInputModule>();
+                Debug.Log("[Kargo] EventSystem kuruldu (butonlar icin gerekli).");
+                return;
+            }
+
+            if (existing.GetComponent<UnityEngine.EventSystems.StandaloneInputModule>() == null)
+            {
+                existing.gameObject.AddComponent<UnityEngine.EventSystems.StandaloneInputModule>();
+                Debug.Log("[Kargo] EventSystem'e StandaloneInputModule eklendi " +
+                          "(fare tiklamasi calismiyordu).");
+            }
+        }
+
+        /// <summary>
         /// Her seyi dogru sirayla kurar.
         ///
         /// Neden gerekli: kurulum birkac ayri menuye bolunmus duruyor ve
@@ -91,6 +133,25 @@ namespace KargoSim.EditorTools
             scaler.matchWidthOrHeight = 0.5f;
 
             root.AddComponent<GraphicRaycaster>();
+
+            // ------------------------------------------------------------------
+            // EventSystem (Asama 13)
+            //
+            // NEDEN GEREKLI: GraphicRaycaster TIKLAMAYI yakalar ama
+            // "tiklama nerede" bilgisine ihtiyac duyar; onu EventSystem
+            // saglar. EventSystem YOKSA butonlarin onClick baglantilari
+            // HIC tetiklenmez - ONAYLA'ya fareyle basmak sessizce
+            // islemsiz kalir.
+            //
+            // Projede EventSystem bulunmuyordu; bu, onceki butonlar
+            // (depo satirlari) icin de zaten bir sorundu, kod paneliyle
+            // gorunur hale geldi.
+            //
+            // StandaloneInputModule: proje LEGACY INPUT MANAGER kullaniyor
+            // (InputSystem paketi yok). Yeni InputSystemUIInputModule
+            // KULLANILMAZ; eklenirse butonlar calismaz.
+            // ------------------------------------------------------------------
+            EnsureEventSystem();
 
             // KRITIK: Canvas kokunun pivot/anchoredPosition degerleri
             // Screen Space - Overlay'da Unity tarafindan surulur, ama
@@ -503,7 +564,7 @@ namespace KargoSim.EditorTools
             // Panel KAPALI: oyun baslamadan gorunmesin.
             panel.gameObject.SetActive(false);
 
-            // DIKKAT: bu sefer KOK da kapatilir (istendiği gibi).
+            // DIKKAT: bu sefer KOK da kapatilir (istendiSi gibi).
             // CodeEntryView.SetVisible bunu telafi eder: acarken once koku
             // acar, sonra paneli acar. Ayrica CompositionRoot bu view'i
             // bulurken INACTIVE nesneleri de aramali
@@ -800,7 +861,7 @@ namespace KargoSim.EditorTools
             //
             // ONEMLI: eskide sizeDelta burada tamamen yok sayiliyordu:
             //   offsetMin = (0, 16); offsetMax = (0, -16)  ->  yukseklik -32
-            // Baslik ve alt bilgi bu yuzden CÖKÜp üst üste biniyordu
+            // Baslik ve alt bilgi bu yuzden ust uste biniyordu
             // ("metinler ic ice girdi"). Simdi yukseklik korunuyor.
             float insetX = offset.x;
             float bottom, top;
