@@ -76,8 +76,16 @@ namespace KargoSim.Cargo
 
         private Parcel GenerateOne()
         {
-            ParcelType type = _types[_random.Next(_types.Length)];
-            if (type == null) type = _types[0];
+            // Tur INDEKSI saklanir: teslimat kodu (kargo kimligi + tur
+            // indeksi + gun) turetilirken kullanilir. Indeks bilinmezse
+            // kod ayni kargo kimliginde her turde ayni kalirdi.
+            int typeIndex = _random.Next(_types.Length);
+            ParcelType type = _types[typeIndex];
+            if (type == null)
+            {
+                type = _types[0];
+                typeIndex = 0;
+            }
 
             float weight = Range(type.minWeightKg, type.maxWeightKg);
             float volume = Range(type.minVolumeLiters, type.maxVolumeLiters);
@@ -92,8 +100,10 @@ namespace KargoSim.Cargo
                 type.paymentPerKg * weight * priority.PaymentMultiplier(),
                 MidpointRounding.AwayFromZero);
 
-            return new Parcel(_nextId++, type, recipient, destination,
-                              weight, volume, priority, deadline, baseValue);
+            var parcel = new Parcel(_nextId++, type, recipient, destination,
+                                    weight, volume, priority, deadline, baseValue);
+            parcel.AssignTypeIndex(typeIndex);
+            return parcel;
         }
 
         private ParcelPriority RollPriority()

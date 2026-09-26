@@ -112,6 +112,11 @@ namespace KargoSim.EditorTools
             HudView hud = BuildHud(root.transform, font);
             MinimapView minimap = BuildMinimap(root.transform, font);
             DepotView depot = BuildDepot(root.transform, font);
+            // TODO(agent): view.Configure(door) CompositionRoot'ta cagrilacak.
+            // Burada SADECE gorunum kurulur; kapilar (AddressDoor) sahnede
+            // birden fazladir ve oturum aktif kapida baslar, bu yuzden
+            // editor kancasinda door atanmaz.
+            CodeEntryView codeEntry = BuildCodeEntry(root.transform, font);
             StopView stop = BuildStop(root.transform, font);
             DaySummaryView summary = BuildSummary(root.transform, font);
 
@@ -398,6 +403,112 @@ namespace KargoSim.EditorTools
             // (GameObject inactive iken cocugu da gorunmez) ve oyuncu
             // "Tab calismiyor" sanar.
             panel.gameObject.SetActive(false);
+            return view;
+        }
+
+        // ------------------------------------------------------------------
+        // Teslimat kodu paneli
+        // ------------------------------------------------------------------
+
+        /// <summary>
+        /// Adres kapisinda acilan kod girisi panelini kurar.
+        ///
+        /// Duzen (DepotView/StopView ile ayni): kucuk panel, ortada,
+        /// yazi bantlari ust/alt kenara yapistik. Yazilar ASCII (LegacyRuntime
+        /// fontunda Turkce karakter yok).
+        ///
+        /// KOD GIZLI: hicbir metin alanina dogru kod YAZILMAZ; sadece
+        /// oyuncunun girdigi rakamlar gorunur.
+        /// </summary>
+        private static CodeEntryView BuildCodeEntry(Transform parent, Font font)
+        {
+            var go = new GameObject("CodeEntry");
+            go.transform.SetParent(parent, false);
+            var view = go.AddComponent<CodeEntryView>();
+
+            RectTransform panel = CreatePanel("Panel", go.transform,
+                new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), Vector2.zero,
+                new Vector2(360f, 260f));
+            panel.anchorMin = new Vector2(0.5f, 0.5f);
+            panel.anchorMax = new Vector2(0.5f, 0.5f);
+            panel.pivot = new Vector2(0.5f, 0.5f);
+
+            // Ustten asagiya: baslik / NPC satiri / rakam girisi / mesaj.
+            // Dikey araliklar panelin 260 yuksekligine gore secildi; alt
+            // kisimda buton (42-72) ve ipucu (10-30) var, ust yazi
+            // bandinin tabani 88'de bittigi icin caprazma yok.
+            Text title = CreateText("Title", panel, font, UITheme.FontLarge, UITheme.Accent,
+                new Vector2(0f, 1f), new Vector2(1f, 1f), new Vector2(0f, -14f), new Vector2(330f, 36f));
+            title.alignment = TextAnchor.UpperCenter;
+            title.text = "TESLIMAT KODU";
+
+            Text npcLine = CreateText("NpcLine", panel, font, UITheme.FontNormal, UITheme.TextPrimary,
+                new Vector2(0f, 1f), new Vector2(1f, 1f), new Vector2(0f, -56f), new Vector2(330f, 26f));
+            npcLine.alignment = TextAnchor.UpperCenter;
+            npcLine.text = "Musteri size bir kod soyledi";
+
+            Text input = CreateText("Input", panel, font, UITheme.FontHuge, UITheme.TextPrimary,
+                new Vector2(0f, 1f), new Vector2(1f, 1f), new Vector2(0f, -88f), new Vector2(330f, 52f));
+            input.alignment = TextAnchor.MiddleCenter;
+            input.text = "[ _ _ _ _ ]";
+
+            Text message = CreateText("Message", panel, font, UITheme.FontNormal, UITheme.TextMuted,
+                new Vector2(0f, 1f), new Vector2(1f, 1f), new Vector2(0f, -146f), new Vector2(330f, 26f));
+            message.alignment = TextAnchor.MiddleCenter;
+            message.text = string.Empty;
+
+            // Onay butonu: mevcut desen (ParcelRowView) - Image target
+            // graphic + Button. Raycast hedefi Image'in kendisidir; yazi
+            // etiketleri raycastTarget = false.
+            var buttonGo = new GameObject("ConfirmButton", typeof(RectTransform));
+            buttonGo.transform.SetParent(panel, false);
+            var buttonRt = (RectTransform)buttonGo.transform;
+            buttonRt.anchorMin = new Vector2(0.5f, 0f);
+            buttonRt.anchorMax = new Vector2(0.5f, 0f);
+            buttonRt.pivot = new Vector2(0.5f, 0f);
+            buttonRt.anchoredPosition = new Vector2(0f, 42f);
+            buttonRt.sizeDelta = new Vector2(150f, 30f);
+
+            Image buttonBg = buttonGo.AddComponent<Image>();
+            buttonBg.color = new Color(1f, 1f, 1f, 0.12f);
+
+            Button button = buttonGo.AddComponent<Button>();
+            button.targetGraphic = buttonBg;
+
+            Text buttonLabel = CreateText("Label", buttonRt, font, UITheme.FontSmall, UITheme.TextPrimary,
+                new Vector2(0f, 0f), new Vector2(1f, 0f), new Vector2(0f, 0f), new Vector2(30f, 0f));
+            buttonLabel.alignment = TextAnchor.MiddleCenter;
+            buttonLabel.text = "ONAYLA";
+
+            Text hint = CreateText("Hint", panel, font, UITheme.FontSmall, UITheme.TextMuted,
+                new Vector2(0f, 0f), new Vector2(1f, 0f), new Vector2(0f, 10f), new Vector2(330f, 20f));
+            hint.alignment = TextAnchor.LowerCenter;
+            hint.text = "Rakam yaz, ENTER ile onayla, ESC iptal";
+
+            var so = new SerializedObject(view);
+            so.FindProperty("panelRoot").objectReferenceValue = panel;
+            so.FindProperty("titleText").objectReferenceValue = title;
+            so.FindProperty("npcLineText").objectReferenceValue = npcLine;
+            so.FindProperty("inputText").objectReferenceValue = input;
+            so.FindProperty("messageText").objectReferenceValue = message;
+            so.FindProperty("hintText").objectReferenceValue = hint;
+            so.FindProperty("confirmButton").objectReferenceValue = button;
+            so.ApplyModifiedPropertiesWithoutUndo();
+            EditorUtility.SetDirty(view);
+
+            // TODO(agent): view.Configure(door) CompositionRoot'ta cagrilacak
+            // (GameCompositionRoot.CreateCourier icinde, door.Configure'inin
+            // yanina). "door" alani kasikli olsun diye burada ATANMAZ.
+
+            // Panel KAPALI: oyun baslamadan gorunmesin.
+            panel.gameObject.SetActive(false);
+
+            // DIKKAT: bu sefer KOK da kapatilir (istendiği gibi).
+            // CodeEntryView.SetVisible bunu telafi eder: acarken once koku
+            // acar, sonra paneli acar. Ayrica CompositionRoot bu view'i
+            // bulurken INACTIVE nesneleri de aramali
+            // (FindObjectsInactive.Include) - bkz. rapor.
+            go.SetActive(false);
             return view;
         }
 

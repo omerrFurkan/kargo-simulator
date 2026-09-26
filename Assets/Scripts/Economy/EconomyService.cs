@@ -69,6 +69,11 @@ namespace KargoSim.Economy
             // gun odemeden once guncellenir. Abonelik kapatilabilir oldugu
             // icin sizinti olusmaz.
             GameEvents.DayStarted += OnDayStarted;
+
+            // Teslimat kodu (Asama 13). Sadece CEZA uygular; basarili
+            // teslim parası ParcelDelivered uzerinden gelmeye devam eder,
+            // yani teslim odemesi bu eklemeden hic degismedi.
+            GameEvents.DeliveryCodeWrong += OnDeliveryCodeWrong;
         }
 
         /// <summary>
@@ -139,6 +144,33 @@ namespace KargoSim.Economy
         ///     oyuncunun parasini yazmaya devam ediyor.
         /// Cagrilmasa bile etkisi olmaz: sadece dinleyiciyi bus'tan siler.
         /// </summary>
+        /// <summary>
+        /// Yanlis teslimat kodu: ceza kesilir, odeme VERILMEZ.
+        ///
+        /// Neden ayri: para kazanma yolu <c>ParcelDelivered</c>'dır. Yanlis
+        /// kodda bu olay hiç yayinlanmadigi icin zaten odeme olmaz; burada
+        /// sadece CEZA var.
+        ///
+        /// Kurgu: gercek bir teslimat sirketinde musteriye gidip kodu
+        /// okutamamak bir teslimat DEGILDIR - kurye yine de yolda zaman
+        /// kaybeder. Ceza her hatali giris icindir; kural degistirilmek
+        /// istenirse tek yer burasi.
+        /// </summary>
+        private void OnDeliveryCodeWrong(Cargo.Parcel parcel)
+        {
+            if (_disposed) return;
+            if (_config == null) return;
+            if (_config.wrongCodePenalty <= 0) return;
+
+            // DIKKAT: `Delivery` bu sinifta bir PROPERTI'dir
+            // (DeliverySystem Delivery => _delivery), yani
+            // `Delivery.DeliveryOutcome` yazmak property'ye gider ve
+            // derlenmez (CS1061). Tam nitelendirme sart.
+            var penalty = new Payout(0, 0, _config.wrongCodePenalty, 0);
+            _progress.ApplyPayout(penalty,
+                KargoSim.Delivery.DeliveryOutcome.Failed, _currentDay);
+        }
+
         public void Dispose()
         {
             if (_disposed) return;
@@ -146,6 +178,7 @@ namespace KargoSim.Economy
 
             GameEvents.ParcelDelivered -= OnParcelDelivered;
             GameEvents.DayStarted -= OnDayStarted;
+            GameEvents.DeliveryCodeWrong -= OnDeliveryCodeWrong;
 
             GC.SuppressFinalize(this);
         }

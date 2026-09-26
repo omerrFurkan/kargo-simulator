@@ -66,6 +66,13 @@ namespace KargoSim.Delivery
         /// <summary>Gun basindan bu yana gecen simulasyon suresi (saniye).</summary>
         public float Elapsed => _elapsed;
 
+        /// <summary>
+        /// Kargo sistemi. Kapidan "paketlenmis mi?" kontrolu yapmak icin
+        /// gerekiyor: AddressDoor teslimattan once kargonun paketlenmis
+        /// oldugunu dogruluyor ve bunu kargo sisteminden soruyor.
+        /// </summary>
+        public CargoSystem Cargo => _cargo;
+
         /// <summary>Rotadaki duraklar (sirali). UI bunu cizer.</summary>
         public IReadOnlyList<DeliveryStop> Route => _route;
 

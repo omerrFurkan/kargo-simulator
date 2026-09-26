@@ -35,6 +35,10 @@ namespace KargoSim.Economy
                  "olur ve oyuncuyu kargoyu hic yuklememeye iter.")]
         [Range(0, 500)] public int failedDeliveryPenalty = 0;
 
+    [Tooltip("Yanlis teslimat kodu girildiginde kesilen para (her hatali giris icin). " +
+             "0 = ceza yok. Teslimat kodunun eklenmesiyle gelmistir.")]
+    [Range(0, 200)] public int wrongCodePenalty = 0;
+
         // ------------------------------------------------------------------
         // XP
         // ------------------------------------------------------------------

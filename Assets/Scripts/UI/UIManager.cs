@@ -33,6 +33,9 @@ namespace KargoSim.UI
         [SerializeField] private DaySummaryView summaryView;
         [SerializeField] private MinimapView minimap;
 
+        [Tooltip("Teslimat kodu giris paneli (Asama 13).")]
+        [SerializeField] private CodeEntryView codeEntry;
+
         [Header("Ayar")]
         [Tooltip("Aracin deponun bu yaricapinda sayilmasi (metre).")]
         [SerializeField] private float depotRadius = 12f;
@@ -135,6 +138,17 @@ namespace KargoSim.UI
         public void Tick(float deltaTime)
         {
             if (!_bound) return;
+
+            // Kod paneli ONCE islenir: oyuncunun kapiyi calan E basisi
+            // HandleInput icinde tetiklenir ve ayni karede paneli acar.
+            // Sirayi ters cevirirsek o karede E, henuz acilmamis panelin
+            // tuslarini tuketirdi.
+            if (codeEntry != null) codeEntry.Tick(deltaTime);
+
+            // Panel acikken oyunun diger girdileri (binme, bosaltma,
+            // depo paneli) sizmasin: kod girisi bitmeden araca binilirse
+            // teslimat oturumu havada kalir.
+            if (codeEntry != null && codeEntry.IsOpen) return;
 
             HandleInput();
 
@@ -257,6 +271,15 @@ namespace KargoSim.UI
         public void SetVanPoint(Player.VanCargoPoint point)        {
             _vanPoint = point;
         }
+
+        /// <summary>
+        /// Kod giris panelini baglar (CompositionRoot cagirir).
+        ///
+        /// DIKKAT: panel kurulumda KAPALI birakildigi icin
+        /// FindFirstObjectByType'in FindObjectsInactive.Include overload'u
+        /// ile bulunmasi gerekir.
+        /// </summary>
+        public void SetCodeEntry(CodeEntryView view) => codeEntry = view;
 
         /// <summary>
         /// Secili kargolari araca yukletir. Kurye ajani varsa karakter

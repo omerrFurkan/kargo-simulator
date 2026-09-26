@@ -223,8 +223,31 @@ namespace KargoSim.Tests.PlayMode
                 door.Interact(courier);
                 yield return null;
 
+                // ASAMA 13: kapiya basmak konusma baslatir, teslim ETMEZ.
+                // Teslimat icin musteri kod vermeli ve oyuncu dogru kodu
+                // girmeli. Once bunu dogrula.
+                Assert.IsTrue(door.IsAwaitingCode,
+                    "Kapida E'ye basinca kod oturumu acilmali. Ipuclu: " + door.Prompt);
+
+                // NPC evde mi? Degilse teslim olmaz; bu durum ayri bir
+                // testin konusu. Kabul testi evde olan musteri arar.
+                var deliveredParcel = courier.CarriedParcels[0];
+                for (int i = 0; i < courier.CarriedParcels.Count; i++)
+                {
+                    if (courier.CarriedParcels[i].DestinationId ==
+                        root.Delivery.CurrentStop.DestinationId)
+                    {
+                        deliveredParcel = courier.CarriedParcels[i];
+                        break;
+                    }
+                }
+
+                Assert.IsTrue(door.SubmitCode(deliveredParcel.DeliveryCodeText),
+                    "Dogru teslimat kodu kabul edilmeli.");
+                yield return null;
+
                 Assert.AreEqual(1, deliveredCount,
-                    "Kapida E'ye basinca kargo teslim OLAYI yayilmadi. "
+                    "Dogru kod girilince kargo teslim OLAYI yayilmali. "
                     + "Oyuncu para kazanamaz.");
             }
             finally
@@ -246,7 +269,8 @@ namespace KargoSim.Tests.PlayMode
                 "Teslimden sonra durakta bekleyen kargo sayisi azalmali.");
 
             Debug.Log("[Kabul] Akis tamam: in -> al -> paketle (" + packagingSteps
-                        + " adim) -> koy -> bin -> adres -> al -> teslim. "
+                        + " adim) -> koy -> bin -> adres -> al -> kapi -> NPC -> "
+                        + "kod -> teslim. "
                         + "Para: " + moneyBefore + " -> " + moneyAfter
                         + ", elde kalan: " + courier.CarriedCount);
         }

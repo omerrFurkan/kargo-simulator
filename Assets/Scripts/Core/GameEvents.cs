@@ -123,6 +123,64 @@ namespace KargoSim.Core
         public static void RaiseParcelPackaged(Cargo.Parcel parcel) =>
             ParcelPackaged?.Invoke(parcel);
 
+        // ---- NPC / teslimat kodu (Asama 13) ----
+
+        /// <summary>
+        /// Bir adresin kapisi calindi. Parametre: adres kimligi.
+        ///
+        /// NOT: teslim YAPILMADIGI icin ParcelDelivered YAYINLANMAZ. Bu
+        /// ayrim kritik: ekonomi ParcelDelivered dinler, bu yuzden kapı
+        /// calmak odeme tetiklemez.
+        /// </summary>
+        public static event Action<int> DoorKnocked;
+
+        /// <summary>
+        /// NPC kapidi acti ve teslimat kodu soruluyor.
+        /// Parametreler: (adres kimligi, musteri adi, beklenen kod).
+        /// </summary>
+        public static event Action<int, string, int> NPCAnswered;
+
+        /// <summary>Musteri evde degildi. Parametre: adres kimligi.</summary>
+        public static event Action<int> CustomerNotHome;
+
+        /// <summary>
+        /// Oyuncu bir teslimat kodu girdi. Parametreler:
+        /// (kargo, girilen metin, dogrumu).
+        ///
+        /// HATA DUYUSU: bu olay HER giris icin yayilir. Basarisiz
+        /// girisler de sayilmali; aksi halde oyuncu dogru kodu bulana
+        /// kadar deneme sayisi gorunmez.
+        /// </summary>
+        public static event Action<Cargo.Parcel, string, bool> DeliveryCodeSubmitted;
+
+        /// <summary>Kod dogrulandi. Parametre: teslim edilen kargo.</summary>
+        public static event Action<Cargo.Parcel> DeliveryCodeCorrect;
+
+        /// <summary>
+        /// Kod yanlis. Parametre: reddedilen kargo.
+        ///
+        /// Kargo ELDE KALIR; teslim edilmez. Ceza bu olaydan uygulanir.
+        /// </summary>
+        public static event Action<Cargo.Parcel> DeliveryCodeWrong;
+
+        public static void RaiseDoorKnocked(int destinationId) =>
+            DoorKnocked?.Invoke(destinationId);
+
+        public static void RaiseNPCAnswered(int destinationId, string name, int code) =>
+            NPCAnswered?.Invoke(destinationId, name, code);
+
+        public static void RaiseCustomerNotHome(int destinationId) =>
+            CustomerNotHome?.Invoke(destinationId);
+
+        public static void RaiseDeliveryCodeSubmitted(Cargo.Parcel parcel, string input, bool correct) =>
+            DeliveryCodeSubmitted?.Invoke(parcel, input, correct);
+
+        public static void RaiseDeliveryCodeCorrect(Cargo.Parcel parcel) =>
+            DeliveryCodeCorrect?.Invoke(parcel);
+
+        public static void RaiseDeliveryCodeWrong(Cargo.Parcel parcel) =>
+            DeliveryCodeWrong?.Invoke(parcel);
+
         public static void RaisePayoutApplied(Economy.Payout payout,
                                               Delivery.DeliveryOutcome outcome) =>
             PayoutApplied?.Invoke(payout, outcome);
@@ -157,6 +215,12 @@ namespace KargoSim.Core
             PackagingAbandoned = null;
             PackagingStepCompleted = null;
             ParcelPackaged = null;
+            DoorKnocked = null;
+            NPCAnswered = null;
+            CustomerNotHome = null;
+            DeliveryCodeSubmitted = null;
+            DeliveryCodeCorrect = null;
+            DeliveryCodeWrong = null;
         }
     }
 }

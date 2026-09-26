@@ -16,6 +16,7 @@ MonoBehaviour:
   earlyBonusRatio: 0.25
   earlyBonusThreshold: 0.2
   failedDeliveryPenalty: 0
+  wrongCodePenalty: 0
   xpPerDelivery: 12
   xpPerKg: 1.5
   levelUpBaseCost: 100

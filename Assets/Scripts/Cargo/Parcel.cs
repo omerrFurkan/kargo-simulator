@@ -114,6 +114,47 @@ namespace KargoSim.Cargo
         /// <summary>0..1 arasi paketleme ilerlemesi.</summary>
         public float PackagingProgress01 => PackagingSteps.Progress01(PackagingProgress);
 
+        // ------------------------------------------------------------------
+        // Teslimat kodu (Asama 13)
+        // ------------------------------------------------------------------
+
+        /// <summary>
+        /// Kapida dogrulanacak teslimat kodu.
+        ///
+        /// KAYITTA SAKLANMAZ. <see cref="Cargo.DeliveryCode.Generate"/> ile
+        /// kargo kimligi, gun ve tur indeksinden TURETILIR. Boylece
+        /// SaveData'ya yeni alan eklemeye gerek kalmaz ve eski kayitlar
+        /// bozuk kodla donmez.
+        /// </summary>
+        public int DeliveryCode => Cargo.DeliveryCode.Generate(Id, CodeDay, TypeIndex);
+
+        /// <summary>Kodon hangi gun icin uretilecegi.</summary>
+        public int CodeDay { get; private set; } = 1;
+
+        /// <summary>
+        /// Kargo turunun indeksi. Kod turetimine karisir; ayni kargo
+        /// kimligi farkli turde farkli kod verir.
+        /// </summary>
+        private int TypeIndex { get; set; }
+
+        /// <summary>Kodu gosterilebilir metin ("4821").</summary>
+        public string DeliveryCodeText => Cargo.DeliveryCode.Format(DeliveryCode);
+
+        /// <summary>
+        /// Kargoyu belli bir gune baglar. Gun degistiginde kod degisir.
+        /// <see cref="CargoSystem.BeginDay"/> cagirir.
+        /// </summary>
+        public void AssignCodeDay(int day)
+        {
+            CodeDay = day < 1 ? 1 : day;
+        }
+
+        /// <summary>Tur indeksini atar (kayit/uretim aninda bir kez).</summary>
+        public void AssignTypeIndex(int index)
+        {
+            TypeIndex = index < 0 ? 0 : index;
+        }
+
         /// <summary>
         /// Paketlemeye baslandi. Zaten baslanmistiysa hicbir sey olmaz
         /// (cift cagri ikinci kez sureyi sifirlamamali).

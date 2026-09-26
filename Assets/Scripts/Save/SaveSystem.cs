@@ -419,11 +419,20 @@ namespace KargoSim.Save
                 ParcelType type = ReadType(types, record.typeIndex, ref unknownType);
                 ParcelPriority priority = ReadPriority(record.priority);
 
-                var parcel = new Parcel(
-                    record.id, type, record.recipientName, record.destinationId,
-                    record.weightKg, record.volumeLiters, priority,
-                    record.deadlineSeconds,
-                    ComputeBaseValue(type, record.weightKg, priority));
+                  var parcel = new Parcel(
+                      record.id, type, record.recipientName, record.destinationId,
+                      record.weightKg, record.volumeLiters, priority,
+                      record.deadlineSeconds,
+                      ComputeBaseValue(type, record.weightKg, priority));
+
+                  // Teslimat kodu kayit dosyasinda SAKLANMAZ; kargo
+                  // kimligi + tur indeksi + gunden TURETILIR. Burada
+                  // tur indeksini atamazsak kod tum yuklenen kayitlarda
+                  // 0'a duser ve "eski kayitlar farkli kod uretir" hale
+                  // gelir. Gun atamasi da ayni sebeple: oyuncunun kaldigi
+                  // gunun kodu uretilmeli.
+                  parcel.AssignTypeIndex(record.typeIndex);
+                  parcel.AssignCodeDay(data.day);
 
                 if (layout != null && !layout.Find(record.destinationId).HasValue)
                 {

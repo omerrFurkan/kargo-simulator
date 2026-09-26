@@ -68,6 +68,11 @@ namespace KargoSim.Cargo
             _generator.ResetForNewDay(day * 7919);
             List<Parcel> parcels = _generator.Generate(_config.parcelsPerDay);
 
+            // Teslimat kodu gune baglidir: ayni kargo farkli gun farkli
+            // kod alir. Bu, eski kodla teslimat yapilamaz demektir.
+            for (int i = 0; i < parcels.Count; i++)
+                parcels[i]?.AssignCodeDay(day);
+
             _manifest.BeginDay(parcels);
             GeneratedToday = parcels.Count;
 

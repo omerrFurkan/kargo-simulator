@@ -346,14 +346,34 @@ namespace KargoSim.Tests.EditMode
 
             IgnoreEditorDestroyError(() => door.Interact(_courier));
 
-            Assert.IsTrue(dogru.IsDelivered,
-                "Dogru adres kargosi teslim edilmeli.");
-            Assert.IsFalse(dogru.IsLoaded,
-                "Teslim edilen kargo arac uzerinde kalmamali.");
-            Assert.AreEqual(0, stop.PendingCount, "Durak bosalmali.");
-            Assert.AreEqual(0, _courier.CarriedCount,
-                "Teslimden sonra kurye bosalmali.");
-        }
+              // ASAMA 13: kapiya basmak ARDIK teslim etmez; konusma
+              // baslar ve kod beklenir. Teslimat ancak dogru kod girilince
+              // olur. Once kod beklenmeden teslim oldugunu dogrula.
+              Assert.IsTrue(door.IsAwaitingCode,
+                  "Kapiya basildiginda kod oturumu acilmali.");
+              Assert.IsFalse(dogru.IsDelivered,
+                  "Kod girilmeden kargo TESLIM EDILMEMIS olmali.");
+
+              // Dogru kodu gir. SubmitCode basarili teslimde
+              // courier.DropOne cagirir, o da EditMode'da Destroy
+              // kullandigi icin buradaki test yardimcisi sarilir.
+              bool accepted = false;
+              IgnoreEditorDestroyError(() => accepted = door.SubmitCode(dogru.DeliveryCodeText));
+              Assert.IsTrue(accepted, "Dogru kod kabul edilmeli.");
+              yield_AssertDelivered(dogru, stop);
+          }
+
+          /// <summary>Teslimat sonrasi ortak kontroller.</summary>
+          private void yield_AssertDelivered(Parcel dogru, DeliveryStop stop)
+          {
+              Assert.IsTrue(dogru.IsDelivered,
+                  "Dogru adres kargosi teslim edilmeli.");
+              Assert.IsFalse(dogru.IsLoaded,
+                  "Teslim edilen kargo arac uzerinde kalmamali.");
+              Assert.AreEqual(0, stop.PendingCount, "Durak bosalmali.");
+              Assert.AreEqual(0, _courier.CarriedCount,
+                  "Teslimden sonra kurye bosalmali.");
+          }
 
         // ------------------------------------------------------------------
         // Yapilandirilmamis etkilesim noktalari

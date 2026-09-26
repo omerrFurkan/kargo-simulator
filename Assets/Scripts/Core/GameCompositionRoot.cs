@@ -70,6 +70,7 @@ namespace KargoSim.Core
         private bool _playerPaused;
         private Mission.MissionSystem _missions;
         private Cargo.PackagingSystem _packaging;
+        private NPC.NPCSystem _npc;
 
         public GameConfig Config => config;
         public GameClock Clock => _clock;
@@ -143,6 +144,42 @@ namespace KargoSim.Core
             // `requiresPackaging` kuralini zaten okuyor, PackagingSystem
             // de ayni bayragi kendi `Required` alanina alir.
             _packaging = new Cargo.PackagingSystem(config.requiresPackaging);
+
+            CreateNpcSystem();
+        }
+
+        /// <summary>
+        /// NPC sistemi: her adres icin bir musteri.
+        ///
+        /// Neden ayri metot ve neden CreateCargoSystem SONUNDA: adres
+        /// listesi MapLayout'ta (ScriptableObject), NPC verisi oradan
+        /// turer. Kargo/teslimat sistemlerinden BAGIMSIZ olmasi gerekir:
+        /// NPC sistemi teslimat akisini bilmez, sadece "bu adreste kimse
+        /// var mi" sorusunu yanitlar.
+        /// </summary>
+        private void CreateNpcSystem()
+        {
+            _npc = new NPC.NPCSystem();
+
+            if (mapLayout == null || mapLayout.deliveryPoints == null) return;
+
+            var ids = new List<int>(mapLayout.deliveryPoints.Count);
+            var names = new List<string>(mapLayout.deliveryPoints.Count);
+
+            for (int i = 0; i < mapLayout.deliveryPoints.Count; i++)
+            {
+                var point = mapLayout.deliveryPoints[i];
+                ids.Add(point.id);
+                // Adres zaten bir musteri adi iceriyorsa onu kullan;
+                // yoksa NPC sistemi kendi varsayilan adini uretir.
+                names.Add(point.displayName);
+            }
+
+            // 0.8: 14 adresten gunde yaklasik 11'i evde. Yuzde 100
+            // teslim edilebilir olsaydi kod dogrulamasi oyunun kalan
+            // kismi gibi hissedilirdi; yuzde 0 olsaydi oyuncu ilk
+            // kapida takilip vazgecerdi.
+            _npc.Build(ids, names, 0.8f);
         }
 
         private void CreateDeliverySystem()
@@ -266,7 +303,22 @@ namespace KargoSim.Core
             }
 
             var door = FindFirstObjectByType<Player.AddressDoor>();
-            if (door != null) door.Configure(_delivery, courier);
+            if (door != null)
+            {
+                door.Configure(_delivery, courier);
+                door.SetNpcSystem(_npc);
+            }
+
+            // Teslimat kodu giris paneli. Panel kurulumda KAPALI
+            // birakildigi icin pasif nesneler de aranmalidir; aksi halde
+            // bulunamaz ve kod girisi hic acilmaz.
+            var codeEntry = FindFirstObjectByType<UI.CodeEntryView>(
+                FindObjectsInactive.Include);
+            if (codeEntry != null)
+            {
+                codeEntry.Configure(door);
+                uiManager?.SetCodeEntry(codeEntry);
+            }
 
             // Paketleme masasi. Zaman kaynagi OLARAK SIMULASYON SAATI
             // veriliyor, Time.time degil: gun saati duraklatildiginda
@@ -318,6 +370,7 @@ namespace KargoSim.Core
             _cargo?.BeginDay(day);
             _delivery?.BeginDay();
             _packaging?.BeginDay();
+            _npc?.BeginDay(day);
 
             // Gunun gorevleri burada secilir: once kargo ve teslimat
             // tazelenir, sonra gorev havuzu gunun tohumuyla kurulur.
@@ -547,6 +600,11 @@ namespace KargoSim.Core
         /// kurulmadiysa null doner; cagiran taraf null'a dayanik olmali.
         /// </summary>
         public Mission.MissionSystem Missions => _missions;
+
+        /// <summary>
+        /// NPC sistemi (Asama 13). HUD ve testler icin okunabilir.
+        /// </summary>
+        public NPC.NPCSystem Npc => _npc;
 
 #if UNITY_EDITOR
         /// <summary>
