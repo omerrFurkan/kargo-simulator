@@ -68,6 +68,7 @@ namespace KargoSim.Core
         private Player.PlayerProgress _progress;
         private Transform _playerVehicleTransform;
         private bool _playerPaused;
+        private Mission.MissionSystem _missions;
 
         public GameConfig Config => config;
         public GameClock Clock => _clock;
@@ -97,6 +98,7 @@ namespace KargoSim.Core
             CreateDeliverySystem();
             CreateCourier();
             CreateEconomy();
+            CreateMissions();
             CreateAudio();
             LoadFromDisk();
 
@@ -275,6 +277,13 @@ namespace KargoSim.Core
             GameEvents.DayStarted -= OnDayStarted;
             GameEvents.DayEnded -= OnDayEnded;
 
+            // Domuz Donuk (Domain Reload) kapali calistirildiginda Awake
+            // yeniden cagrilsa bile statik olaylarda ikinci bir kurye
+            // birikmesin diye abonelik burada MUTLAKA kaldirilir.
+            GameEvents.ParcelDelivered -= OnMissionParcelDelivered;
+            GameEvents.PayoutApplied -= OnMissionPayoutApplied;
+            GameEvents.LevelUp -= OnMissionLevelUp;
+
             // EconomyService de statik abone kuruyor; IDisposable
             // uyguladigi icin burada birakiliyor.
             _economy?.Dispose();
@@ -290,6 +299,99 @@ namespace KargoSim.Core
             // bir kez uretiliyordu, 2. gun depoda kargo kalmiyordu.)
             _cargo?.BeginDay(day);
             _delivery?.BeginDay();
+
+            // Gunun gorevleri burada secilir: once kargo ve teslimat
+            // tazelenir, sonra gorev havuzu gunun tohumuyla kurulur.
+            _missions?.BeginDay(day);
+        }
+
+        /// <summary>
+        /// Gunluk gorevleri kurar ve ilerlemeyi DOGRUDAN GameEvents'ten
+        /// dinler.
+        ///
+        /// Neden ayri bir dinleyici degil: gorev ilerlemesi zaten
+        /// "bir sey oldu" olaylarindan turer. Yeni bir olay turu
+        /// eklersek (or. kargoda hasar) gorev sistemi degismez, sadece
+        /// buraya bir satir eklenir.
+        ///
+        /// MissionSystem saf bir siniftir; statik event kullanmaz, bu
+        /// yuzden abonelik burada kurulur ve OnDestroy'da kaldirilir.
+        /// </summary>
+        private void CreateMissions()
+        {
+            if (economyConfig == null)
+            {
+                // Ekonomi yoksa odul kredisi ne olacak? Bilinmiyor; gorev
+                // sistemi kurulmaz. Oyun yine oynanir, sadece gorev olmaz.
+                return;
+            }
+
+            _missions = new Mission.MissionSystem(BuildMissionPool(), economyConfig);
+
+            GameEvents.ParcelDelivered += OnMissionParcelDelivered;
+            GameEvents.PayoutApplied += OnMissionPayoutApplied;
+            GameEvents.LevelUp += OnMissionLevelUp;
+        }
+
+        /// <summary>
+        /// Gorev havuzunu kurar. Sayilar oyunun temposuna gore secildi:
+        /// 12 kargoluk bir gunde 3 teslim rahatca yapilabilir, 8 zor.
+        /// </summary>
+        private static List<Mission.MissionDefinition> BuildMissionPool()
+        {
+            return new List<Mission.MissionDefinition>
+            {
+                Mission.MissionDefinition.Create(
+                    Mission.MissionKind.DeliverCount, 3, "Bugun 3 kargo teslim et", 60, 25),
+
+                Mission.MissionDefinition.Create(
+                    Mission.MissionKind.DeliverCount, 5, "Bugun 5 kargo teslim et", 120, 45),
+
+                Mission.MissionDefinition.Create(
+                    Mission.MissionKind.EarnMoney, 400, "Bugun 400 TL kazanc yap", 100, 35),
+
+                Mission.MissionDefinition.Create(
+                    Mission.MissionKind.EarnMoney, 800, "Bugun 800 TL kazanc yap", 200, 70),
+
+                Mission.MissionDefinition.Create(
+                    Mission.MissionKind.NoFailures, 0, "Bugun hicbir teslimati bozma", 150, 60),
+
+                Mission.MissionDefinition.Create(
+                    Mission.MissionKind.OnTimeRate, 90, "Teslimatlarin %90'i zamaninda olsun", 180, 75),
+
+                Mission.MissionDefinition.CreatePriority(
+                    Mission.MissionKind.DeliverPriority, 2, "2 acil kargoyu zamaninda teslim et",
+                    KargoSim.Cargo.ParcelPriority.Urgent, 160, 55),
+
+                Mission.MissionDefinition.CreateBonus(
+                    Mission.MissionKind.DeliverCount, 7, "Sezon bonusu: 7 kargo teslim et", 300, 120),
+            };
+        }
+
+        private void OnMissionParcelDelivered(KargoSim.Cargo.Parcel parcel, KargoSim.Delivery.DeliveryOutcome outcome)
+        {
+            if (_missions == null || parcel == null) return;
+
+            bool ok = outcome == KargoSim.Delivery.DeliveryOutcome.Success;
+
+            // Basarisiz teslimat sayac turlerini ilerletmez ama
+            // "hicbir teslimati bozma" gorevini kalici olarak bozar.
+            _missions.Report(Mission.MissionKind.DeliverCount, 1, ok);
+            _missions.Report(Mission.MissionKind.NoFailures, 0, ok);
+            _missions.Report(Mission.MissionKind.OnTimeRate, 0, ok);
+            _missions.Report(Mission.MissionKind.DeliverPriority, 1, ok, parcel.Priority);
+        }
+
+        private void OnMissionPayoutApplied(Economy.Payout payout, KargoSim.Delivery.DeliveryOutcome outcome)
+        {
+            if (_missions == null) return;
+            _missions.Report(Mission.MissionKind.EarnMoney, payout.Payment,
+                outcome == KargoSim.Delivery.DeliveryOutcome.Success);
+        }
+
+        private void OnMissionLevelUp(int level)
+        {
+            _missions?.Report(Mission.MissionKind.ReachLevel, level, true);
         }
 
         /// <summary>
@@ -373,6 +475,15 @@ namespace KargoSim.Core
             _delivery?.FailRemainingParcels();
             _economy?.EndDay(day);
 
+            // Gorev kapanisi EKONOMI kapanisindAN SONRA cagrilir: "bugun
+            // hicbir teslimati bozma" ve "zamaninda oran" gorevleri ancak
+            // gunun tam istatistigi bittikten sonra degerlendirilebilir.
+            if (_missions != null)
+            {
+                _missions.EndDay();
+                GrantMissionRewards(day);
+            }
+
             // Gun bittiginde arac nerede olursa olsun depoya don.
             // Ayar tanimliydi ama HICBIR YERDE okunmuyordu: oyuncu
             // 90 m uzaklakta gun bitince yeni kargo geliyor, arac orada
@@ -390,6 +501,33 @@ namespace KargoSim.Core
 
             if (autosaveOnDayEnd) SaveToDisk();
         }
+
+        /// <summary>
+        /// Tamamlanan gorevlerin odulunu oyuncuya verir.
+        ///
+        /// Neden Payout uzerinden: para oyununun TEK girdisi
+        /// PlayerProgress.ApplyPayout'tur. Buradan dogrudan para eklersek
+        /// gun sonu ozeti bu parayi GORMEZ ve kayitta iki farkli gercek
+        /// olusur. Ayni yoldan gecersek ozet, HUD ve kayit tutarli kalir.
+        /// </summary>
+        private void GrantMissionRewards(int day)
+        {
+            int money = _missions.TotalRewardMoney;
+            int xp = _missions.TotalRewardXp;
+            if ((money <= 0 && xp <= 0) || _progress == null) return;
+
+            var reward = new Economy.Payout(money, 0, 0, xp);
+            _progress.ApplyPayout(reward, KargoSim.Delivery.DeliveryOutcome.Success, day);
+
+            Debug.Log("[GameCompositionRoot] Gun " + day + " gorev odulu: " +
+                      money + " para, " + xp + " XP.", this);
+        }
+
+        /// <summary>
+        /// Gunun gorevlerini okumak icin (HUD / panel). Gorev sistemi
+        /// kurulmadiysa null doner; cagiran taraf null'a dayanik olmali.
+        /// </summary>
+        public Mission.MissionSystem Missions => _missions;
 
 #if UNITY_EDITOR
         /// <summary>

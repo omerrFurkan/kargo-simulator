@@ -19,7 +19,7 @@ MonoBehaviour:
   maxVolumeLiters: 25
   paymentPerKg: 85
   fragile: 1
-  baseSuccessRate: 0.95
-  isRare: 0
+  baseSuccessRate: 0.88
+  isRare: 1
   color: {r: 0.8, g: 0.6, b: 0.32, a: 1}
   boxSize: 0.42

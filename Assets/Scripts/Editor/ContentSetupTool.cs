@@ -38,33 +38,39 @@ namespace KargoSim.EditorTools
             public float MaxVolume;
             public float PaymentPerKg;
             public bool Fragile;
+            public float BaseSuccessRate;
+            public bool IsRare;
         }
 
+        // baseSuccessRate: zamaninda teslimde basari sansi. Kirilabilir
+        // turler daha dusuk tutulur (delme, cevirme, yagmurda islanma),
+        // belge neredeyse her zaman gider. isRare: ozel mudahale isteyen
+        // kargo; kucuk bir basari bonusu ve daha yuksek odeme getirir.
         private static readonly ParcelTypeSpec[] Specs =
         {
             new ParcelTypeSpec { FileName = "ParcelType_Belge",    DisplayName = "Belge",
                 MinWeight = 0.4f, MaxWeight = 1.2f, MinVolume = 1f,   MaxVolume = 3f,
-                PaymentPerKg = 35f, Fragile = false },
+                PaymentPerKg = 35f, Fragile = false, BaseSuccessRate = 0.99f, IsRare = false },
 
             new ParcelTypeSpec { FileName = "ParcelType_Kirtasiye", DisplayName = "Kirtasiye",
                 MinWeight = 1.0f, MaxWeight = 3.0f, MinVolume = 4f,   MaxVolume = 12f,
-                PaymentPerKg = 30f, Fragile = false },
+                PaymentPerKg = 30f, Fragile = false, BaseSuccessRate = 0.97f, IsRare = false },
 
             new ParcelTypeSpec { FileName = "ParcelType_Esya",     DisplayName = "Esya",
                 MinWeight = 3.0f, MaxWeight = 8.0f, MinVolume = 15f,  MaxVolume = 45f,
-                PaymentPerKg = 42f, Fragile = false },
+                PaymentPerKg = 42f, Fragile = false, BaseSuccessRate = 0.95f, IsRare = false },
 
             new ParcelTypeSpec { FileName = "ParcelType_Gida",     DisplayName = "Gida",
                 MinWeight = 2.0f, MaxWeight = 6.0f, MinVolume = 10f,  MaxVolume = 30f,
-                PaymentPerKg = 38f, Fragile = true },
+                PaymentPerKg = 38f, Fragile = true, BaseSuccessRate = 0.92f, IsRare = false },
 
             new ParcelTypeSpec { FileName = "ParcelType_Elektronik", DisplayName = "Elektronik",
                 MinWeight = 1.5f, MaxWeight = 5.0f, MinVolume = 8f,   MaxVolume = 25f,
-                PaymentPerKg = 85f, Fragile = true },
+                PaymentPerKg = 85f, Fragile = true, BaseSuccessRate = 0.88f, IsRare = true },
 
             new ParcelTypeSpec { FileName = "ParcelType_Ilac",     DisplayName = "Ilac",
                 MinWeight = 0.5f, MaxWeight = 2.0f, MinVolume = 2f,   MaxVolume = 8f,
-                PaymentPerKg = 65f, Fragile = true },
+                PaymentPerKg = 65f, Fragile = true, BaseSuccessRate = 0.90f, IsRare = true },
         };
 
         [MenuItem("Kargo/3. Icerik Assetlerini Kur", priority = 2)]
@@ -124,7 +130,8 @@ namespace KargoSim.EditorTools
             type.maxVolumeLiters = spec.MaxVolume;
             type.paymentPerKg = spec.PaymentPerKg;
             type.fragile = spec.Fragile;
-            type.baseSuccessRate = 0.95f;
+            type.baseSuccessRate = spec.BaseSuccessRate;
+            type.isRare = spec.IsRare;
             type.Sanitize();
 
             EditorUtility.SetDirty(type);

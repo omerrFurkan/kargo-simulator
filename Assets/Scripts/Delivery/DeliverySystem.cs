@@ -13,7 +13,11 @@ namespace KargoSim.Delivery
     /// ve neden oldugunu bilir; odemeyi ekonomi sistemi yapar. Iki katman
     /// ayni isi yapmaz.
     ///
-    /// Update() YOK. Zamanlama dişaridan gelir: CompositionRoot her karede
+    /// ASAMA 11: sonucu artik kendisi URETMEZ, <see cref="DeliveryRisk"/>
+    /// katmanina sorar (tur orani, kirilabilirlik, nadir kargo). Risk karari
+    /// yine uc sonucu kullanir; ekonomi tarafi HICBIR degismedi.
+    ///
+    /// Update() YOK. Zamanlama disaridan gelir: CompositionRoot her karede
     /// <see cref="Tick"/> cagirir. Oyunun tek Update cagrisi kurali bozulmaz.
     /// </summary>
     public sealed class DeliverySystem
@@ -29,6 +33,12 @@ namespace KargoSim.Delivery
         private float _elapsed;
         private int _routeCursor;
         private DeliveryStop _currentStop;
+
+        /// <summary>
+        /// ASAMA 11: risk tohumu (gun + kargo kimligi) buradan turer.
+        /// CompositionRoot bu numarayi vermedigi icin kendimiz tutuyoruz.
+        /// </summary>
+        private int _day = 1;
 
         // DUZELTME (Hata 4): aracin konumu ve "bu konum gercek mi?" bilgisi
         // ayri tutulur. Vector3.zero hem "depodayim" hem "arac bilinmiyor"
@@ -67,6 +77,23 @@ namespace KargoSim.Delivery
 
         /// <summary>Su an yuklenmis kargo sayisi.</summary>
         public int LoadedParcelCount => _cargo?.Manifest?.LoadedCount ?? 0;
+
+        /// <summary>
+        /// ASAMA 11: teslim sonucunu uretirken kullanilan gun numarasi.
+        /// Ayni kargo, ayni gun, ayni karari verir.
+        /// </summary>
+        public int CurrentDay => _day;
+
+        /// <summary>
+        /// ASAMA 11: son teslimdeki kirilabilir hasar (0..100 yuzde).
+        /// Kirilabilir olmayan kargo ve basarili teslimde hep 0'dir.
+        ///
+        /// NEDEN AYRI BIR OZELLIK: hasar yeni bir odeme ya da olay
+        /// bicimi degil, mevcut <see cref="DeliveryOutcome"/> uclusune
+        /// baglanir (hasarli teslim = BASARISIZ). Ekonomi tarafi ve
+        /// GameEvents aynen kalir; HUD/istatistik ise bu sayaci okur.
+        /// </summary>
+        public int LastFragileDamage { get; private set; }
 
         // ------------------------------------------------------------------
         // Zamanlama
@@ -136,6 +163,13 @@ namespace KargoSim.Delivery
         /// <summary>Gun sifirlama (gun sonu / yeni gun).</summary>
         public void BeginDay()
         {
+            // ASAMA 11: tohum "gun + kargo kimligi"den turetildigi icin
+            // sistemin gun sayacini bilmesi gerekiyor. CompositionRoot bu
+            // metodu kurulumda da ("gun 1") cagirir, o yuzden gercekten bir
+            // gun gecmeden sayaci artirmiyoruz: simulasyon suresi dolmadikca
+            // ayni gun sayilir. Boylece gun 1'in tohumu kaymaz.
+            if (_elapsed > 0f) _day++;
+
             _elapsed = 0f;
             _stops.Clear();
             _route.Clear();
@@ -144,6 +178,7 @@ namespace KargoSim.Delivery
             RemainingDistance = 0f;
             _dirty = true;
             _lastLoadedCount = -1;
+            LastFragileDamage = 0;
         }
 
         private void RebuildRouteIfNeeded()
@@ -249,15 +284,21 @@ namespace KargoSim.Delivery
         /// <returns>Sonuc; null ise kargo teslim edilemedi.</returns>
         public DeliveryOutcome? TryDeliver(int parcelId)
         {
+            // Her denemede sifirlanir: teslim olmayan bir deneme, bir
+            // onceki teslimin hasarini tasmamali.
+            LastFragileDamage = 0;
+
             DeliveryStop stop = _currentStop;
             if (stop == null) return null;
 
             Parcel parcel = FindParcel(parcelId);
             if (parcel == null) return null;
 
-            DeliveryOutcome outcome = parcel.IsOverdue(_elapsed)
-                ? DeliveryOutcome.Late
-                : DeliveryOutcome.Success;
+            // ASAMA 11: karar burada degil, risk katmaninda. Onceki
+            // kod "sure doldu mu?" diye sorup her zaman Success ya da Late
+            // donuyordu; yani ParcelType.baseSuccessRate, fragile ve
+            // isRare alanlari hic okunmuyordu ve oyun %100 basariliydi.
+            DeliveryOutcome outcome = RollDeliveryOutcome(parcel);
 
             // Duragin kalan kargo sayaci once duser (rotada ilerleme icin).
             // Kargonun kendi durumuna dokunmaz.
@@ -297,6 +338,36 @@ namespace KargoSim.Delivery
             // Teslim edilen kargo listeden cikti ama sayi degisimi (baska
             // bir kargo yuklenmesi) rotayi bayatlatabilir: elle isaretle.
             _dirty = true;
+            return outcome;
+        }
+
+        /// <summary>
+        /// ASAMA 11: tek bir teslimin kararini risk katmanindan alir.
+        ///
+        /// Tohum: gun + kargo kimligi. Ayni kargo, ayni gun, ayni karar;
+        /// deneme sayisina baglanmaz, cunku bir kargo yalnizca bir kez
+        /// teslim edilebilir.
+        ///
+        /// DEGER KAYBI NASIL AKTARILIYOR: kirilabilir kargo hasar gorurse
+        /// teslim BASARISIZ sayilir (odeme 0 + ceza). Boylece yeni bir odeme
+        /// bicimi, yeni bir olay ya da ekonomi dosyasinda degisiklik
+        /// gerekmez: mevcut ucunlu (Success/Late/Failed) aynen yeterlidir.
+        /// </summary>
+        private DeliveryOutcome RollDeliveryOutcome(Parcel parcel)
+        {
+            float ratio = DeliveryRisk.RemainingRatio(parcel, _elapsed);
+
+            DeliveryOutcome outcome = DeliveryRisk.RollOutcome(
+                parcel, ratio, DeliveryRisk.OutcomeSeed(_day, parcel.Id));
+
+            // Hasar ayri bir tohumdan atilir: ayni kargonun "sonucu" ve
+            // "hasari" birbirine bagli olmaz.
+            int damage = DeliveryRisk.FragileDamage(
+                parcel, ratio, DeliveryRisk.DamageSeed(_day, parcel.Id));
+
+            LastFragileDamage = damage;
+            if (damage > 0) return DeliveryOutcome.Failed;
+
             return outcome;
         }
 
