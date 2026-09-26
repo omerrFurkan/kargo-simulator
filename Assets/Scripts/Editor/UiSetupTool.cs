@@ -256,8 +256,27 @@ namespace KargoSim.EditorTools
 
         private static HudView BuildHud(Transform parent, Font font)
         {
-            var go = new GameObject("HUD");
+            // ASAMA 19: HUD koku RectTransform OLMALI.
+            //
+            // Once `new GameObject("HUD")` ile kuruluyordu; bu DUZ Transform
+            // verir. Unity bunu otomatik RectTransform'a CEVIRMEZ. Sonuc:
+            // HUD'in cocuklari (Money, Level, Capacity...) Canvas'a kenarlanamaz
+            // ve ekranin ORTASINDA yigilir - olcum:
+            //     Money x=60 y=69, NextStop x=50 y=55, Minimap x=58 y=40
+            //
+            // Oyuncu: "navigasyon ve diger ibareler ekranin cok ortasinda".
+            // Sebep bu idi: kok RectTransform degildi.
+            var go = new GameObject("HUD", typeof(RectTransform));
             go.transform.SetParent(parent, false);
+
+            // Tüm ekrani kaplasin; cocuklar kenarlara kenarlanabilsin.
+            var rootRect = (RectTransform)go.transform;
+            rootRect.anchorMin = Vector2.zero;
+            rootRect.anchorMax = Vector2.one;
+            rootRect.pivot = new Vector2(0.5f, 0.5f);
+            rootRect.offsetMin = Vector2.zero;
+            rootRect.offsetMax = Vector2.zero;
+            rootRect.anchoredPosition = Vector2.zero;
 
             var view = go.AddComponent<HudView>();
 
@@ -330,7 +349,8 @@ namespace KargoSim.EditorTools
 
         private static MinimapView BuildMinimap(Transform parent, Font font)
         {
-            var go = new GameObject("Minimap");
+            // ASAMA 19: minimap koku da RectTransform olmali (bkz. BuildHud).
+            var go = new GameObject("Minimap", typeof(RectTransform));
             go.transform.SetParent(parent, false);
             var view = go.AddComponent<MinimapView>();
 
@@ -390,7 +410,7 @@ namespace KargoSim.EditorTools
 
         private static DepotView BuildDepot(Transform parent, Font font)
         {
-            var go = new GameObject("DepotPanel");
+            var go = new GameObject("DepotPanel", typeof(RectTransform));
             go.transform.SetParent(parent, false);
             var view = go.AddComponent<DepotView>();
 
@@ -490,7 +510,7 @@ namespace KargoSim.EditorTools
         /// </summary>
         private static CodeEntryView BuildCodeEntry(Transform parent, Font font)
         {
-            var go = new GameObject("CodeEntry");
+            var go = new GameObject("CodeEntry", typeof(RectTransform));
             go.transform.SetParent(parent, false);
             var view = go.AddComponent<CodeEntryView>();
 
@@ -586,7 +606,7 @@ namespace KargoSim.EditorTools
 
         private static StopView BuildStop(Transform parent, Font font)
         {
-            var go = new GameObject("StopPanel");
+            var go = new GameObject("StopPanel", typeof(RectTransform));
             go.transform.SetParent(parent, false);
             var view = go.AddComponent<StopView>();
 
@@ -628,7 +648,7 @@ namespace KargoSim.EditorTools
 
         private static DaySummaryView BuildSummary(Transform parent, Font font)
         {
-            var go = new GameObject("DaySummary");
+            var go = new GameObject("DaySummary", typeof(RectTransform));
             go.transform.SetParent(parent, false);
             var view = go.AddComponent<DaySummaryView>();
 

@@ -109,6 +109,14 @@ namespace KargoSim.UI
                 return;
             }
 
+            // ASAMA 19: HUD yerlesimini kose konumlarina sabitler.
+            //
+            // Sahnedeki degerler yanlisti (olcum: Money x=60, NextStop
+            // x=50 y=55, Minimap x=58 y=40 - yani her sey ekranin
+            // ortasinda). Yerlesim sahne yerine burada, kodda belirlenir;
+            // sahne elle degistirilse de kendini duzeltir.
+            HudLayout.Apply(hud, minimap);
+
             Subscribe();
             RefreshAll();
             _bound = true;
