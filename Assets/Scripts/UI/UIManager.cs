@@ -334,32 +334,69 @@ namespace KargoSim.UI
         /// <summary>
         /// Oyuncunun EN YAKININDAKI arac kargo noktasi.
         ///
-        /// Neden "en yakin" ve "odak" degil: oyuncu aracin yaninda ama
-        /// kamerasi onune bakmiyor olabilir. yakinlik kurali "yaninda
-        /// dur" demiyi daha guvenilir kiliyor.
+        /// ASAMA 29: ARACTAYKEN KURYE DEGIL, ARAÇ REFERANS ALINIR.
         ///
-        /// Eski aracla birlikte "binilmis" arac varsa odur: iki arac da
-        /// yakinlikte ayni olabilir.
+        /// Iki oyuncunun bildirdigi hata buradan geliyordu:
+        ///
+        ///  1) "bisikletten iniyorum, arabanin yaninda doguyorum"
+        ///  2) "tam durdurdum ve bindigim aractan inmiyorum"
+        ///
+        /// Once kod suyle calisiyordu:
+        ///
+        ///     if (ActiveVehicle != null) { best = _vanPoint; ... }   // (1)
+        ///     Vector3.Distance(_courier.transform.position, ...)      // (2)
+        ///
+        /// (1) `_vanPoint` VANIN noktasi ve kosulsuz tercih ediliyordu.
+        ///     Oyuncu bisikletteyken bile vanin noktasi seciliyor ve
+        ///     `ExitSpot()` ile ARABANIN YANINDA doguyordu.
+        ///
+        /// (2) Mesafe KURYENIN konumundan olculuyordu. Arac icindeyken
+        ///     karakter yalnizca gizlenir (`SetVisible(false)`); transform'u
+        ///     binme noktasinda kalir. Oyuncu depoda binip kilometrelerce
+        ///     uzaklastiginda kurye "uzakta" gorunur, 4.5 m sinirini asar
+        ///     ve hicbir nokta bulunamaz -> "aractan inmiyorum".
+        ///
+        /// Cozum: arac tarafindayken mesafe AKTIF ARACIN konumundan
+        /// olculur ve once o aracin kendi noktasi secilir.
         /// </summary>
         private Player.VanCargoPoint NearestCargoPoint()
         {
-            Player.VanCargoPoint best = null;
-            float bestDistance = 4.5f;   // binecek kadar yakin
-
-            if (_vanPoint != null)
+            // Arac icindeysek: kural degisir. Kurye yerde degil, arac
+            // yerde; ve inilecek nokta SADECE bu aracin noktasidir.
+            if (_courier.IsInVehicle && _courier.ActiveVehicle != null &&
+                _courier.ActiveVehicle.VehicleTransform != null)
             {
-                // Su an kullanilan arac: her zaman oncelikli.
-                if (_courier.ActiveVehicle != null &&
-                    _vanPoint != null &&
-                    _courier.ActiveVehicle.VehicleTransform != null)
+                Vector3 vehiclePos = _courier.ActiveVehicle.VehicleTransform.position;
+
+                Player.VanCargoPoint own = null;
+                for (int i = 0; i < _cargoPoints.Count; i++)
                 {
-                    float d = Vector3.Distance(
-                        _courier.transform.position,
-                        _vanPoint.transform.position);
-                    best = _vanPoint;
-                    bestDistance = d;
+                    if (_cargoPoints[i] == null) continue;
+                    if (Vector3.Distance(_cargoPoints[i].transform.position, vehiclePos) < 6f)
+                    {
+                        own = _cargoPoints[i];
+                        break;
+                    }
                 }
+
+                // Nokta bulunamadiysa mesafe sinirini gecici olarak
+                // kaldir: oyuncu zaten bu aracin icinde, demek ki
+                // noktasi vardir; sadece sapmislidir.
+                if (own == null)
+                {
+                    for (int i = 0; i < _cargoPoints.Count; i++)
+                    {
+                        if (_cargoPoints[i] == null) continue;
+                        own = _cargoPoints[i];
+                        break;
+                    }
+                }
+                return own;
             }
+
+            // Ayaktayken: en yakin arac (binecek kadar yakin).
+            Player.VanCargoPoint best = null;
+            float bestDistance = 4.5f;
 
             for (int i = 0; i < _cargoPoints.Count; i++)
             {
