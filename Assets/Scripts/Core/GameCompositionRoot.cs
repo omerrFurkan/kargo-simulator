@@ -375,6 +375,14 @@ namespace KargoSim.Core
             // uretim kodu her zaman daha guvenilir bir kaynak oldu.
             SpawnShopCustomers(courier);
 
+            // ENVANTER PANELI (karakter + arac bagaji).
+            // Sahneye elle eklenmez; uretim kodundan kurulur.
+            _inventory = UI.CargoInventoryBuilder.Build(
+                FindFirstObjectByType<Canvas>(), _cargo, courier, _delivery);
+
+            if (_inventory != null && uiManager != null)
+                uiManager.SetInventoryView(_inventory);
+
             // ASAMA 14: her aracin kendi kargo noktasi ve kendi
             // surucu kamerasi var.
             //
@@ -806,6 +814,8 @@ namespace KargoSim.Core
         /// baglantilari, etiketler, RectTransform'lar) ve uretim kodu her
         /// zaman daha guvenilir bir kaynak oldu.
         /// </summary>
+        private UI.CargoInventoryView _inventory;
+
         private void SpawnShopCustomers(Player.CourierController courier)
         {
             if (courier == null) return;

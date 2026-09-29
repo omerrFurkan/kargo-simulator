@@ -42,6 +42,18 @@ namespace KargoSim.UI
         [SerializeField] private DaySummaryView summaryView;
         [SerializeField] private MinimapView minimap;
 
+        /// <summary>
+        /// Envanter paneli (karakter eli + arac bagaji).
+        ///
+        /// I tusu ile acilir; TAB depoya ozgu kalir. Oyuncu envanteri
+        /// "her zaman" acabilmeliydi.
+        /// </summary>
+        [SerializeField] private CargoInventoryView inventoryView;
+
+        [SerializeField] private KeyCode inventoryKey = KeyCode.I;
+
+        public void SetInventoryView(CargoInventoryView view) => inventoryView = view;
+
         [Tooltip("Teslimat kodu giris paneli (Asama 13).")]
         [SerializeField] private CodeEntryView codeEntry;
 
@@ -186,6 +198,25 @@ namespace KargoSim.UI
 
             // ASAMA 31: odaktaki esyanin ozellik penceresi.
             UpdateTooltip();
+
+            // ENVANTER: I ile acilir, 1-3 elden araca, 4-6 araçtan ele.
+            //
+            // Panel acikken dunya kontrolleri KISITLANIR (gorev #29
+            // "panel acikken dunya kontrolleri yanlislikla calismamali").
+            if (inventoryView != null)
+            {
+                if (Input.GetKeyDown(inventoryKey)) inventoryView.Toggle();
+
+                if (inventoryView.IsOpen)
+                {
+                    for (int i = 0; i < CargoInventoryView.MaxSlots * 2; i++)
+                    {
+                        if (Input.GetKeyDown(KeyCode.Alpha1 + i))
+                            inventoryView.UseSlot(i + 1);
+                    }
+                    if (Input.GetKeyDown(KeyCode.Escape)) inventoryView.Close();
+                }
+            }
 
             // Yalnizca baglama bagli olan minimap her kare tazelenir.
             if (minimap != null && _vehicle != null)

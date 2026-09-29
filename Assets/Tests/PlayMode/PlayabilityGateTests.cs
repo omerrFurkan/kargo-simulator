@@ -340,14 +340,25 @@ namespace KargoSim.Tests.PlayMode
             Delivery.DeliveryStop stop = null;
             for (int i = 0; i < route.Count && stop == null; i++)
             {
-                _bike.transform.position = route[i].Position;
-                _root.Delivery.VehiclePosition = route[i].Position;
-                _root.Delivery.Tick(1f, false);
+                  _bike.transform.position = route[i].Position;
+                  _root.Delivery.VehiclePosition = route[i].Position;
+
+                  // ONCE imlec, SONRA Tick. `Tick` -> `RebuildRouteIfNeeded`
+                  // cagrisi rotayi kurar ve imleci SIFIRLAR; imlec atanmadan
+                  // once konulsaydi test her zaman durak#0'i gorup "kuryenin
+                  // elindeki kutuyla eslesen durak yok" sanardi.
+                  //
+                  // BU BUGUN GERCEK BIR HATAYDI: kargo elden araca gecince
+                  // rota yeniden kurulup imlec sifirlaniyordu.
+
+                  _root.Delivery.SetRouteCursorForTests(i);
+                  _root.Delivery.Tick(1f, false);
 
                 var s = _root.Delivery.CurrentStop;
                 if (s == null) continue;
                 if (CarriesFor(s)) stop = s;
             }
+
 
             Assert.IsNotNull(stop,
                 "Rota " + route.Count + " durakli ama kuryenin elindeki " +

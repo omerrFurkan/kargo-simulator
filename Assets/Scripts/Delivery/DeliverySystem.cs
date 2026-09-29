@@ -271,6 +271,29 @@ namespace KargoSim.Delivery
         // Varis ve teslim
         // ------------------------------------------------------------------
 
+        /// <summary>
+        /// YALNIZCA TEST: bulunulan duragi temizler.
+        ///
+        /// Uc tanesi de duragi "kimse yakininda degil" saniyordu; test
+        /// araci duragin uzerine isaret edip bir sonraki duragi aramaya
+        /// calisiyordu, sistem de bir sonrakine gecmiyordu. Oyuncu
+        /// icin bu dogru davranis (sira beklenir), test icin engel.
+        /// </summary>
+        public void ClearCurrentStopForTests() => _currentStop = null;
+
+        /// <summary>
+        /// YALNIZCA TEST: rota imlecini verilen duraga atar.
+        ///
+        /// "Onceki duraklar teslim edildi" durumunu simule eder. Oyuncu
+        /// sirayla teslim eder ve imlec ilerler; test belirli bir duragi
+        /// hedeflediginde oncekileri gecmeli.
+        /// </summary>
+        public void SetRouteCursorForTests(int index)
+        {
+            _routeCursor = Mathf.Clamp(index, 0, Mathf.Max(0, _route.Count - 1));
+            _currentStop = null;
+        }
+
         private void UpdateArrival()
         {
             if (_currentStop != null) return;   // zaten bir duraktayiz

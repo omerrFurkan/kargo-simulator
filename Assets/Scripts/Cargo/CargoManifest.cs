@@ -302,6 +302,15 @@ namespace KargoSim.Cargo
             for (int i = 0; i < _available.Count; i++)
                 if (_available[i].Id == id) return _available[i];
 
+            // KURYENIN ELINDEKI kutular da aranir.
+            //
+            // EKLENMEDIGINDE NE OLUYORDU: kutu aractan cekilince
+            // `_carried`a giriyordu. `FindById` sadece arac + depo
+            // listelerini aradigi icin kutu BULUNAMIYOR ve yeniden araca
+            // konulamiyordu. Oyuncu kutuyu cekip geri koyunca kutu
+            // kaybolmus gibi gorunuyordu ("iki yonlu transfer calismiyor").
+            for (int i = 0; i < _carried.Count; i++)
+                if (_carried[i].Id == id) return _carried[i];
             return null;
         }
 
