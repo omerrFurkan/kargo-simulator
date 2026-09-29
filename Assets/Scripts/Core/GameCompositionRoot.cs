@@ -328,6 +328,7 @@ namespace KargoSim.Core
                 if (v != null) v.ControlsLocked = true;
 
             PlaceCourierNearVehicle(courier);
+            AlignCourierModelToFeet(courier);
 
             // ASAMA 17: karakter araclari ITER.
             //
@@ -877,6 +878,36 @@ namespace KargoSim.Core
         /// <summary>
         /// Kuryeyi aracin yanina, yuruyerek ulasabilecegi bir noktaya koyar.
         /// </summary>
+        /// <summary>
+        /// GORSEL GOMULME DUZELTMESI.
+        ///
+        /// Oyuncu: "karakterin yarisi harita zemininin altinda".
+        /// OLCULDU: fizik dogrudu (ayak-zemin farki 0.03 m) ama GORELEN
+        /// model zemine 0.57 m gomuluyordu. Sebep: sahnede `Model`
+        /// cocugunun `localPosition.y = -0.600` olmasi.
+        ///
+        /// NEDEN KODDA: bu projede sahne/prefab YAML'i elle duzenlendi
+        /// ve uc kez bozuldu. Calisma zamaninda hizalanir.
+        /// </summary>
+        private void AlignCourierModelToFeet(Player.CourierController target)
+        {
+            if (target == null) return;
+
+            Transform model = target.transform.Find("Model");
+            if (model == null) return;
+
+            Vector3 p = model.localPosition;
+            if (Mathf.Abs(p.y) > 2f) return;   // zaten bilinmeyen deger
+            if (Mathf.Approximately(p.y, 0f)) return;
+
+            p.y = 0f;
+            model.localPosition = p;
+
+            Debug.Log("[GameCompositionRoot] Kurye modeli ayak hizasina "
+                      + "getirildi (localY 0.000). 'Karakter yere gomulu' "
+                      + "sikayeti olcumle 0.57 m gomulme olarak dogrulandi.");
+        }
+
         private void PlaceCourierNearVehicle(Player.CourierController courier)
         {
             if (courier == null || _playerVehicleTransform == null) return;
