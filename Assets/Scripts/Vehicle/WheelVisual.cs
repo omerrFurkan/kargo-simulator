@@ -82,33 +82,43 @@ namespace KargoSim.Vehicle
 
             wheelCollider.GetWorldPose(out Vector3 position, out Quaternion rotation);
 
-            // Gorsel mesh arac kokunun cocugu; world pozunu local'a cevir.
+            // ASAMA 26: REFERANS CERCEVE TEKERIN KENDI EBEVEYNIDIR.
+            //
+            // Oyuncu fotograf: "lastikler arabanin disinda olmasi gereken
+            // yerlerimde degil". Yatay durus duzeltildikten sonra sorun
+            // gorunur oldu: teker yuvalari bos, lastikler govdenin disinda.
+            //
+            // Sebep BURADA: mesh arac kokunun (vehicleRoot) cocuguymus gibi
+            // konumlandiriliyordu:
+            //
+            //     transform.localPosition = vehicleRoot.InverseTransformPoint(position)
+            //
+            // Ama mesh, TEKER nesnesinin cocugudur. Konum tekerin uzerine
+            // YAZILDI -> dunya konumu iki kez eklenir. Olcum birebir tutuyor:
+            //
+            //     capa   z = 1.153
+            //     mesh   z = 1.153 + 1.153 = 2.31   (4.20 m govdeye gore
+            //                                         0.31 m disarida)
+            //
+            // AYNI HATA BISIKLETTE DE VARDI: tekerler arac kokune gore
+            // 1.6 m uzaktaydi, olmasi gereken ~0.8 m.
+            //
+            // Cozum: cerceve olarak mesh'in GERCEK ebeveyni kullanilir.
+            // Boylece mesh fizik noktasinin tam uzerine oturur.
+            Transform frame = transform.parent != null ? transform.parent : vehicleRoot;
+
             if (vehicleRoot == null)
             {
                 transform.SetPositionAndRotation(position, rotation * RestRotation());
                 return;
             }
 
-            transform.localPosition = vehicleRoot.InverseTransformPoint(position);
-
-            // ASAMA 23: DURUS OFFSET'I KORUNMALI - "tekerlerin hali ne".
-            //
-            // Oyuncu fotograf gonderdi: tekerler yere YATIK duruyor ve
-            // aracdan kopmus gorunuyordu.
-            //
-            // Sebep: Unity silindir primitinin ekseni local Y'dir ve teker
-            // ancak 90 derece dondurulunce dik durur (uretimde
-            // `Quaternion.Euler(0, 0, 90)` ile kuruluyor). Burada ise mesh'in
-            // rotasyonu SADECE fizik pozundan yaziliyordu; 90 derecelik
-            // durus ofseti HER KARE siliniyordu. Sonuc: lastik yatay
-            // duruyor, ekranda yere yatmis tabak gibi gorunuyordu.
-            //
-            // Cozum: fizik pozunun ARASINA mesh'in durus ofseti girer.
-            // `rotation * rest` - once fizik dondurmesi, sonra mesh ofseti.
-            transform.localRotation = Quaternion.Inverse(vehicleRoot.rotation)
+            transform.localPosition = frame.InverseTransformPoint(position);
+            transform.localRotation = Quaternion.Inverse(frame.rotation)
                                      * rotation
                                      * RestRotation();
         }
+
 
         private Quaternion RestRotation() => Quaternion.Euler(restEuler);
 
