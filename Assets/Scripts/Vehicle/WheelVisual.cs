@@ -20,9 +20,12 @@ namespace KargoSim.Vehicle
     [DisallowMultipleComponent]
     public sealed class WheelVisual : MonoBehaviour
     {
-        [Tooltip("Mesh'in durus ofseti: Unity silindiri ancak 90 derece " +
-                 "donmus halde teker gibi durur.")]
-        [SerializeField] private Vector3 restEuler = new Vector3(0f, 0f, 90f);
+        [Tooltip("Mesh'in durus ofseti. Unity SILINDIR primitifleri icin 90 " +
+                 "(dik dururlar), Kenney teker modelleri icin 0 (zaten dikeyler). " +
+                 "Varsayilan 0: yanlislikla tum modellere 90 uygulamak, " +
+                 "dogru modellenmis tekerleri YATIRIR.")]
+        [SerializeField] private Vector3 restEuler = Vector3.zero;
+
 
         private WheelCollider wheelCollider;
         private Transform vehicleRoot;
