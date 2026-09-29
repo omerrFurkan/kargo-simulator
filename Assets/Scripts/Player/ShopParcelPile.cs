@@ -182,5 +182,24 @@ namespace KargoSim.Player
 
             Refresh();
         }
+
+        /// <summary>
+        /// Ozellik penceresi (asama 31) icin: rafta DURAN ve henuz
+        /// alinmamis ilk kutu. Oyuncu fareyi rafa uzatip hangi kutunun
+        /// kime gidecegini gorebilsin.
+        /// </summary>
+        public Cargo.Parcel HighlightParcel
+        {
+            get
+            {
+                var available = _cargo != null ? _cargo.Manifest.Available : null;
+                if (available == null) return null;
+
+                for (int i = 0; i < available.Count; i++)
+                    if (available[i] != null) return available[i];
+
+                return null;
+            }
+        }
     }
 }

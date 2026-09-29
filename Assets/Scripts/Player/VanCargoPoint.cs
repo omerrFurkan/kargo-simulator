@@ -334,5 +334,29 @@ namespace KargoSim.Player
               }
           }
 
+
+        /// <summary>
+        /// Ozellik penceresi (asama 31) icin gosterilecek kutu.
+        ///
+        /// Oncelik sirasi: kuryenin ELINDEKI kutu (yukleyecegi) yoksa
+        /// aracdaki ilk kutu (alacagi). Boylece oyuncu hangi kutunun
+        /// nereye gidecegini aracin yaninda gorur.
+        /// </summary>
+        public Cargo.Parcel HighlightParcel
+        {
+            get
+            {
+                if (_courier != null && _courier.IsCarrying && _courier.CarriedCount > 0)
+                    return _courier.CarriedParcels[_courier.CarriedCount - 1];
+
+                var loaded = _cargo != null ? _cargo.Manifest.Loaded : null;
+                if (loaded == null) return null;
+
+                for (int i = 0; i < loaded.Count; i++)
+                    if (loaded[i] != null) return loaded[i];
+
+                return null;
+            }
+        }
     }
 }

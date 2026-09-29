@@ -29,6 +29,14 @@ namespace KargoSim.UI
     {
         [Header("Gorunumler")]
         [SerializeField] private HudView hud;
+
+        /// <summary>
+        /// Fare bir esyanin (kutu) uzerine gelince ayrintisini gosterir.
+        ///
+        /// ASAMA 31: oyuncu "uzerlerine tikladiginda ya da mouse ile
+        /// beklerse kucuk bir pencerede de yazsin" dedi.
+        /// </summary>
+        [SerializeField] private ParcelTooltipView tooltipView;
         [SerializeField] private DepotView depotView;
         [SerializeField] private StopView stopView;
         [SerializeField] private DaySummaryView summaryView;
@@ -175,6 +183,9 @@ namespace KargoSim.UI
 
             // ASAMA 18: zamanli mesajin suresi dolduysa kapat.
             TickMessage(deltaTime);
+
+            // ASAMA 31: odaktaki esyanin ozellik penceresi.
+            UpdateTooltip();
 
             // Yalnizca baglama bagli olan minimap her kare tazelenir.
             if (minimap != null && _vehicle != null)
@@ -493,6 +504,32 @@ namespace KargoSim.UI
         /// <summary>
         /// ASAMA 18: zamanli mesaj varsa ONU goster, yoksa normal ipucu.
         /// </summary>
+        /// <summary>
+        /// Odaktaki esyayi ozellik penceresinde gosterir.
+        ///
+        /// Oyuncu kutuya baktigi anda kime gidecegini, agirligini ve
+        /// paketli olup olmadigini gorebilsin. "Gittigimiz yere gore
+        /// kargolarimizi gorelim" isteginin kucuk ama faydali bir parcasi:
+        /// alici adi ilk satirda.
+        ///
+        /// Kureyle hedef degistiginde de yenilenir; odak yoksa pencere
+        /// kapanir, ekranda yazi birikmaz.
+        /// </summary>
+        private void UpdateTooltip()
+        {
+            if (tooltipView == null) return;
+
+            var focus = _courier != null ? _courier.Focus : null;
+
+            Parcel parcel = null;
+            if (focus is Player.ShopParcelPile) parcel = ((Player.ShopParcelPile)focus).HighlightParcel;
+            else if (focus is Player.VanCargoPoint) parcel = ((Player.VanCargoPoint)focus).HighlightParcel;
+
+            if (parcel == null) { tooltipView.Hide(); return; }
+
+            tooltipView.Show(parcel);
+        }
+
         private void UpdateHudPrompt(bool atDepot, bool depotOpen)
         {
             if (hud == null) return;
