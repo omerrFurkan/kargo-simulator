@@ -20,8 +20,42 @@ namespace KargoSim.Vehicle
     [DisallowMultipleComponent]
     public sealed class WheelVisual : MonoBehaviour
     {
+        [Tooltip("Mesh'in durus ofseti: Unity silindiri ancak 90 derece " +
+                 "donmus halde teker gibi durur.")]
+        [SerializeField] private Vector3 restEuler = new Vector3(0f, 0f, 90f);
+
         private WheelCollider wheelCollider;
         private Transform vehicleRoot;
+
+        /// <summary>
+        /// ASAMA 23: FIZIK BAGLANTISI OTOMATIK KURULUR.
+        ///
+        /// Oyuncu fotograf gonderdi: tekerler yere yatmis ve aracdan kopmus
+        /// gorunuyordu. Sebep iki katmanliydi:
+        ///
+        ///  1) `wheelCollider` serialize EDILMEMISTI. `Bind()` yalnizca
+        ///     editor'de (prefab uretimi) cagriliyordu; runtime'da null
+        ///     kaliyor ve `Sync()` hic calismiyordu. Yani tekerler oyunda
+        ///     hic donmuyor, direksiyonu takip etmiyordu.
+        ///  2) Prefab uretimi sirasinda `Sync()` cagrilip mesh'in 90
+        ///     derecelik durus ofsetini SILMIS ve kaydetmis. Prefaba oyle
+        ///     yazildigi icin lastik yatik kaydedilmis olarak duruyordu.
+        ///
+        /// Artik `Awake` baglantiyi kendisi kuruyor: teker kendi ebeveynini
+        /// bulur. Editor'da uretilen prefab da calisir, elle kurulan da.
+        /// </summary>
+        private void Awake()
+        {
+            if (wheelCollider == null)
+                wheelCollider = GetComponentInParent<WheelCollider>();
+
+            if (vehicleRoot == null)
+            {
+                var v = GetComponentInParent<Vehicle.IVehicleController>();
+                if (v != null && v.VehicleTransform != null) vehicleRoot = v.VehicleTransform;
+                else vehicleRoot = transform.root;
+            }
+        }
 
         /// <summary>
         /// Editor arac prefabini uretirken cagrilir. Cagrilmazsa mesh
@@ -48,12 +82,34 @@ namespace KargoSim.Vehicle
             // Gorsel mesh arac kokunun cocugu; world pozunu local'a cevir.
             if (vehicleRoot == null)
             {
-                transform.SetPositionAndRotation(position, rotation);
+                transform.SetPositionAndRotation(position, rotation * RestRotation());
                 return;
             }
 
             transform.localPosition = vehicleRoot.InverseTransformPoint(position);
-            transform.localRotation = Quaternion.Inverse(vehicleRoot.rotation) * rotation;
+
+            // ASAMA 23: DURUS OFFSET'I KORUNMALI - "tekerlerin hali ne".
+            //
+            // Oyuncu fotograf gonderdi: tekerler yere YATIK duruyor ve
+            // aracdan kopmus gorunuyordu.
+            //
+            // Sebep: Unity silindir primitinin ekseni local Y'dir ve teker
+            // ancak 90 derece dondurulunce dik durur (uretimde
+            // `Quaternion.Euler(0, 0, 90)` ile kuruluyor). Burada ise mesh'in
+            // rotasyonu SADECE fizik pozundan yaziliyordu; 90 derecelik
+            // durus ofseti HER KARE siliniyordu. Sonuc: lastik yatay
+            // duruyor, ekranda yere yatmis tabak gibi gorunuyordu.
+            //
+            // Cozum: fizik pozunun ARASINA mesh'in durus ofseti girer.
+            // `rotation * rest` - once fizik dondurmesi, sonra mesh ofseti.
+            transform.localRotation = Quaternion.Inverse(vehicleRoot.rotation)
+                                     * rotation
+                                     * RestRotation();
         }
+
+        private Quaternion RestRotation() => Quaternion.Euler(restEuler);
+
+        /// <summary>Editor kurulum kancası: mesh'in durus ofsetini ayarlar.</summary>
+        public void ConfigureForSetup(Vector3 euler) => restEuler = euler;
     }
 }

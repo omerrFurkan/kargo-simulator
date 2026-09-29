@@ -1705,6 +1705,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 3d99bb9a2c517b5458b57220b9e03ab6, type: 3}
   m_Name: 
   m_EditorClassIdentifier: KargoSim.Runtime::KargoSim.Vehicle.WheelVisual
+  restEuler: {x: 0, y: 0, z: 90}
 --- !u!1 &3789838040315169653
 GameObject:
   m_ObjectHideFlags: 0
@@ -2506,6 +2507,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 3d99bb9a2c517b5458b57220b9e03ab6, type: 3}
   m_Name: 
   m_EditorClassIdentifier: KargoSim.Runtime::KargoSim.Vehicle.WheelVisual
+  restEuler: {x: 0, y: 0, z: 90}
 --- !u!1 &6181351025291215314
 GameObject:
   m_ObjectHideFlags: 0
@@ -3600,6 +3602,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 3d99bb9a2c517b5458b57220b9e03ab6, type: 3}
   m_Name: 
   m_EditorClassIdentifier: KargoSim.Runtime::KargoSim.Vehicle.WheelVisual
+  restEuler: {x: 0, y: 0, z: 90}
 --- !u!1 &8182878266053731230
 GameObject:
   m_ObjectHideFlags: 0

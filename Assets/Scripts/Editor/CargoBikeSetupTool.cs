@@ -308,9 +308,17 @@ namespace KargoSim.EditorTools
                 Quaternion.Euler(0f, 0f, 90f),
                 visual.transform, frameMat);
 
-            // WheelVisual gorseli fizik pozuna baglar: donme + direksiyon
-            // otomatik takip eder. Cagrilmazsa tekerler havada durur.
-            visual.AddComponent<WheelVisual>().Bind(collider, parent);
+              // WheelVisual gorseli fizik pozuna baglar: donme + direksiyon
+              // otomatik takip eder. Cagrilmazsa tekerler havada durur.
+              //
+              // ASAMA 23: durus ofseti ACIKÇA verilir. Unity silindiri
+              // ancak 90 derece dondurulunce dik durur; bu ofset verilmezse
+              // mesh her kare fiziğin pozunu alip YATAY kalir (oyuncunun
+              // fotografinda gordugu tabak gibi tekerler).
+              var wheelVisual = visual.AddComponent<WheelVisual>();
+              wheelVisual.ConfigureForSetup(new Vector3(0f, 0f, 90f));
+              wheelVisual.Bind(collider, parent);
+
 
             return collider;
         }
