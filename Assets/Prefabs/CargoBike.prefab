@@ -702,6 +702,7 @@ MonoBehaviour:
   brakeResponse: 14
   antiRollStrength: 130
   uprightStrength: 30
+  maxLeanAngle: 4
   definition: {fileID: 11400000, guid: 588b9ce3cf5e1074db3713542be167a0, type: 2}
   body: {fileID: 7408430475404889540}
 --- !u!114 &7829330451322874995

@@ -49,6 +49,12 @@ namespace KargoSim.Vehicle
         [SerializeField] private float antiRollStrength = 130f;
         [SerializeField] private float uprightStrength = 30f;
 
+        [Tooltip("AZAMI yatma acisi (derece). 0 = hic yatmasin. Kargo " +
+                 "bisikletinde okunabilirlik icin kucuk bir deger tercih " +
+                 "edilir: tam dik (0) arac gibi hissettirir, cokBuyuk " +
+                 "yatma ise kutu duser.")]
+        [SerializeField] private float maxLeanAngle = 4f;
+
         [Header("Fizik")]
         [SerializeField] private VehicleDefinition definition;
         [SerializeField] private Rigidbody body;
@@ -309,6 +315,36 @@ namespace KargoSim.Vehicle
             // kaldirarak araci duzlestirir.
             float antiRoll = -lean * antiRollStrength;
             body.AddTorque(transform.forward * antiRoll, ForceMode.Acceleration);
+
+            // ASAMA 28: AZAMI YATMA SINIRI.
+            //
+            // Oyuncu: "yatmasin olmaz mi". TekniK olarak mumkun; yalnizca
+            // yatmayi kistirlamak gerekir.
+            //
+            // Burada sadece KOTU YATMA bastirilir: istenen acidan fazlasi
+            // varsa fazlasi "cezp" olarak geri itilir. Boylece araç
+            // fiziksel olarak yine doner, kutu dussede yatma buyumez.
+            //
+            // Neden tam 0 degil: tam dik bisiklet, direksiyon cevirdiginde
+            // tepki vermeyen bir arac gibi hissedilir. Kucuk bir aci
+            // (varsayilan 4) donus hissini korur, "yamuluyor" izlenimini
+            // vermez.
+            if (maxLeanAngle > 0f)
+            {
+                float maxRad = maxLeanAngle * Mathf.Deg2Rad;
+                float current = Mathf.Asin(Mathf.Clamp(-lean, -1f, 1f));
+                if (Mathf.Abs(current) > maxRad)
+                {
+                float excess = current - Mathf.Sign(current) * maxRad;
+                // Isaret ana anti-roll ile AYNI olmali: sag yatista
+                // (lean < 0) duzeltici tork POZITIFtir ve sag tarafi
+                // kaldirir. Teris birakilirsa arac yatigi yere daha cok
+                // iter - ilk denemede yatma 6,5 -> 13,5 dereceye cikti.
+                body.AddTorque(transform.forward * (excess * antiRollStrength),
+                               ForceMode.Acceleration);
+
+                }
+            }
 
             // Dikey duzeltme: pitch/roll hizini sifirla.
             Vector3 angVel = body.angularVelocity;
