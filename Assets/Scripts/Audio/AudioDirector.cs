@@ -266,6 +266,42 @@ namespace KargoSim.Audio
         /// rakamlari BIREBIR ayni olur - ses ile gosterilen kod arasinda
         /// ayrilma olmaz. Ses bir "tema" degil, kodun kendisidir.
         /// </summary>
+        /// <summary>
+        /// KAPI ZILI sesi (iki perdeli "ding-dong").
+        ///
+        /// Oyuncu: "ev kapi calma zil". Once kapida yalnizca tok sesi
+        /// vardi; oyuncu kapiyi caldiginda "bir sey oldu ama ne oldu"
+        /// belirsizdi.
+        ///
+        /// Yapisal olarak kod tonlariyla ayni: iki nota, ustune hizli
+        /// bir zil tirmasi. Kod tonundan farkli olarak perde SABIT - zil bir
+        /// bilgi tasiyan degil, bir eylemi bildiren ses.
+        ///
+        /// Onbellekli: bir kez uretilir, her calista ayni klip kullanilir.
+        /// </summary>
+        public static AudioClip GetDoorbellClip()
+        {
+            if (_doorbell != null) return _doorbell;
+
+            const float note = 0.34f;      // bir perdenin suresi
+            const float gap = 0.10f;
+            int length = Mathf.RoundToInt(SampleRate * (note * 2f + gap));
+
+            var data = new float[length];
+
+            // "ding": kesik yuksek perde, sonra "dong": alttaki uzatilmis.
+            AddNote(data, 0, 1568f, Mathf.RoundToInt(SampleRate * note), 0.34f, 5f, 0.42f);
+            AddNote(data, Mathf.RoundToInt(SampleRate * (note + gap)),
+                            1047f, Mathf.RoundToInt(SampleRate * note * 1.5f), 0.30f, 4f, 0.40f);
+
+            _doorbell = AudioClip.Create("Doorbell", length, 1, SampleRate, false);
+            _doorbell.SetData(data, 0);
+            _doorbell.hideFlags = HideFlags.DontSave;
+            return _doorbell;
+        }
+
+        private static AudioClip _doorbell;
+
         public static AudioClip GetCodeToneClip(int code)
         {
             AudioClip cached;
@@ -912,8 +948,24 @@ namespace KargoSim.Audio
         }
 
         /// <summary>Asama 13 - kapi calindi.</summary>
+        /// <summary>
+        /// Oyuncu kapiyi caldi.
+        ///
+        /// ASAMA 22: KAPI ZILI. Oyuncu zil istedi; once yalnizca tok sesi
+        /// vardi ve teslim oturumu sessizce basliyordu. Zil, oturumun
+        /// BASLADIGINI bildirir.
+        ///
+        /// Sirasi onemli: once zil, sonra tok sesi. Oyuncu zili duyar,
+        /// ardindan kapi acilir.
+        ///
+        /// Buraya baglanir (AddressDoor'a alan eklemek yerine): AddressDoor
+        /// zaten `GameEvents.RaiseDoorKnocked` yayinliyor ve AudioDirector
+        /// bu olayi dinliyor; kopuk bir referans yerine olay kanalini
+        /// kullanmak daha saglam.
+        /// </summary>
         private void OnDoorKnocked(int destinationId)
         {
+            PlayDoorbell();
             Emit(AudioCue.KapiCal);
         }
 
@@ -952,6 +1004,13 @@ namespace KargoSim.Audio
         /// Sira: once kapi Calinir, sonra selam, sonra kod. Oyuncu
         /// duyduklarini sirayla hatirlar.
         /// </summary>
+        public void PlayDoorbell()
+        {
+            if (_sfx == null) return;
+            AudioClip bell = ProceduralAudio.GetDoorbellClip();
+            if (bell != null) _sfx.PlayOneShot(bell, 0.95f);
+        }
+
         public void PlayDoorSequence(int code)
         {
             if (_sfx == null) return;

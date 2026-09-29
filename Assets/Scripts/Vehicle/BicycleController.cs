@@ -46,8 +46,8 @@ namespace KargoSim.Vehicle
         [Header("Kararlilik (bisiklet)")]
         [Tooltip("Yan devrilmeyi engelleyen kuvvet. Bisiklette dusuk "
                  + "tutulur: yuksek deger araci yapistirir, oyuncu ucramaz.")]
-        [SerializeField] private float antiRollStrength = 60f;
-        [SerializeField] private float uprightStrength = 25f;
+        [SerializeField] private float antiRollStrength = 130f;
+        [SerializeField] private float uprightStrength = 30f;
 
         [Header("Fizik")]
         [SerializeField] private VehicleDefinition definition;
@@ -275,7 +275,23 @@ namespace KargoSim.Vehicle
             // Yan egim: right'in yatay izdusumu ne kadar dikeyden sapti.
             float lean = Vector3.Dot(right, Vector3.up);
 
-            // Tork yatay eksende: araci yana dogru dusurur.
+            // ASAMA 22: "hafiften donuyor, yamuluyor" - ANTI-ROLL GUCU.
+            //
+            // Olcum (once, antiRollStrength = 60):
+            //   duz yol     : 0,0 derece (sabit, sorun yok)
+            //   donus       : 0 -> 5,9 -> 15,3 -> 24,2 -> 30,9 -> 34,0 derece
+            //                 yatma DONUS BOYUNCA SUREKLI BUYUYOR
+            //   birakildiktan: 5 sn sonra 1,4 derece (duzeliyor, sorun yok)
+            //
+            // Yani salinim YOK; sorun DENGE NOKTASININ cok yuksek olmasi.
+            // Anti-roll bir yay: arac yatdikca karsi tork buyur ve denge
+            // kurulur. 60 degeriyle denge noktasi 34 dereceye cikiyordu -
+            // kargo bisikleti icin fazla, kasadaki kutular kayar ve oyuncu
+            // "yamuluyor" diyor.
+            //
+            // 130: sert donuste denge noktasi ~15 dereceye iner. Duz yol
+            // etkilenmez (yatma zaten 0) ve birlakildiktan sonra yine
+            // duzleşir.
             float antiRoll = -lean * antiRollStrength;
             body.AddTorque(transform.up * antiRoll, ForceMode.Acceleration);
 
