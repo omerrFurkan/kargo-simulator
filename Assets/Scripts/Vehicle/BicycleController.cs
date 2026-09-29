@@ -292,8 +292,23 @@ namespace KargoSim.Vehicle
             // 130: sert donuste denge noktasi ~15 dereceye iner. Duz yol
             // etkilenmez (yatma zaten 0) ve birlakildiktan sonra yine
             // duzleşir.
+            // ASAMA 27: TORK EKSENI `up` DEGIL, `forward` OLMALI.
+            //
+            // Oyuncu: "bisiklet sola donemiyor, zorlaniyor" ve "arac
+            // surerken yamuluyor".
+            //
+            // Anti-roll torku `transform.up` ekseninde uygulaniyordu.
+            // O eksen YAW (dumen) eksenidir: tork araci yerinde
+            // CEVRIRIR, yatmasi duzeltmez. Iki belirtinin tek sebebi:
+            //   1) yaw torku direksiyonu FRENLIYOR -> donus zayif
+            //   2) yatma duzeltilmiyor -> araç yamuluyor
+            //
+            // Roll (yatmayi duzeltme) `forward` ekseni etrafinda olur.
+            // Isaret de dogru: sag yatista `right` asagi bakar (lean < 0),
+            // `antiRoll` pozitif olur ve +forward torku sag tarafi
+            // kaldirarak araci duzlestirir.
             float antiRoll = -lean * antiRollStrength;
-            body.AddTorque(transform.up * antiRoll, ForceMode.Acceleration);
+            body.AddTorque(transform.forward * antiRoll, ForceMode.Acceleration);
 
             // Dikey duzeltme: pitch/roll hizini sifirla.
             Vector3 angVel = body.angularVelocity;
