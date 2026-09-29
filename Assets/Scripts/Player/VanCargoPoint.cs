@@ -123,7 +123,16 @@ namespace KargoSim.Player
                 if (parcel == null) continue;
                 if (wanted >= 0 && parcel.DestinationId != wanted) continue;
 
-                if (!courier.PickUp(parcel)) return;
+                // ASAMA 33: kutu listeden cikarilir ve "kuryede"
+                // durumuna gecer; rota DeliverySystem tarafindan
+                // araCta + ELDE birlikte kurulmaya devam eder.
+                if (!courier.CanCarryMore) return;
+                if (!_cargo.Manifest.UnloadParcel(parcel)) continue;
+                if (!courier.PickUp(parcel))
+                {
+                    _cargo.Manifest.TryLoad(parcel, _delivery != null ? _delivery.Elapsed : 0f);
+                    return;
+                }
                 courier.PlayAction("pick-up", 0.4f);
                 Debug.Log("[VanCargoPoint] Kargo eline alindi: " + parcel.Label);
                 return;
@@ -135,7 +144,16 @@ namespace KargoSim.Player
                 Parcel parcel = _cargo.Manifest.Loaded[i];
                 if (parcel == null) continue;
 
-                if (!courier.PickUp(parcel)) return;
+                // ASAMA 33: kutu listeden cikarilir ve "kuryede"
+                // durumuna gecer; rota DeliverySystem tarafindan
+                // araCta + ELDE birlikte kurulmaya devam eder.
+                if (!courier.CanCarryMore) return;
+                if (!_cargo.Manifest.UnloadParcel(parcel)) continue;
+                if (!courier.PickUp(parcel))
+                {
+                    _cargo.Manifest.TryLoad(parcel, _delivery != null ? _delivery.Elapsed : 0f);
+                    return;
+                }
                 courier.PlayAction("pick-up", 0.4f);
                 Debug.Log("[VanCargoPoint] Kargo eline alindi: " + parcel.Label);
                 return;

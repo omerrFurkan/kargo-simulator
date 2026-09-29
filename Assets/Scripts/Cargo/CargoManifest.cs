@@ -38,8 +38,46 @@ namespace KargoSim.Cargo
         private readonly List<Parcel> _available = new List<Parcel>();
         private readonly List<Parcel> _loaded = new List<Parcel>();
 
+        /// <summary>
+        /// KURYENIN ELINDEKI kutular (asama 33).
+        ///
+        /// Once bu yer yoktu: aractan alinan kutu _loaded listesinde
+        /// kaliyordu. Teslimat icin dogruydu ama kutu hem kasada hem
+        /// elde sayiliyordu ve envanter paneli yapilamiyordu.
+        ///
+        /// ONEMLI: kutu "elde" iken arac ROTASINDAN cikmaz.
+        /// DeliverySystem duraklari _loaded VE _carried listesinden
+        /// kurar; rota yalnizca ikisinden kuruldugu icin teslimat
+        /// zinciri bozulmaz.
+        /// </summary>
+        private readonly List<Parcel> _carried = new List<Parcel>();
+
         /// <summary>Depoda bekleyen kargolar (teslim edilmemis).</summary>
         public IReadOnlyList<Parcel> Available => _available;
+
+        /// <summary>Kuryenin elinde tutulan kutular (rota dahil).</summary>
+        public IReadOnlyList<Parcel> Carried => _carried;
+
+        /// <summary>
+        /// Kutu aractan kuryenin eline gecti (asama 33).
+        ///
+        /// Kapasite arac kargosu icindir; kutu eldeyken araci mesgul
+        /// etmez, boylece oyuncu kutuyu cekerek yer acabilir.
+        /// </summary>
+        public bool UnloadParcel(Parcel parcel)
+        {
+            if (parcel == null) return false;
+            if (!_loaded.Remove(parcel) && !_carried.Remove(parcel)) return false;
+
+            LoadedWeightKg -= parcel.WeightKg;
+            LoadedVolumeLiters -= parcel.VolumeLiters;
+            if (LoadedWeightKg < 0f) LoadedWeightKg = 0f;
+            if (LoadedVolumeLiters < 0f) LoadedVolumeLiters = 0f;
+
+            if (!_carried.Contains(parcel)) _carried.Add(parcel);
+            parcel.MarkCarried();
+            return true;
+        }
 
         /// <summary>Aracda olan kargolar.</summary>
         public IReadOnlyList<Parcel> Loaded => _loaded;
@@ -121,7 +159,7 @@ namespace KargoSim.Cargo
         public bool MarkDelivered(Parcel parcel)
         {
             if (parcel == null) return false;
-            if (!_loaded.Remove(parcel)) return false;
+            if (!_loaded.Remove(parcel) && !_carried.Remove(parcel)) return false;
 
             LoadedWeightKg -= parcel.WeightKg;
             LoadedVolumeLiters -= parcel.VolumeLiters;
@@ -214,7 +252,9 @@ namespace KargoSim.Cargo
         {
             if (parcel == null) return false;
             if (!Capacity.IsValid) return false;
-            if (parcel.State != ParcelState.Ready && parcel.State != ParcelState.WaitingInDepot)
+            if (parcel.State != ParcelState.Ready
+                && parcel.State != ParcelState.WaitingInDepot
+                && parcel.State != ParcelState.Carried)
                 return false;
 
             // Paketleme zorunluysa ham kargo araca giremez.
@@ -222,6 +262,7 @@ namespace KargoSim.Cargo
 
             if (!Fits(parcel)) return false;
 
+            if (parcel.State == ParcelState.Carried) _carried.Remove(parcel);
             _available.Remove(parcel);
             _loaded.Add(parcel);
             parcel.MarkLoaded(systemTime);

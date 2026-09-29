@@ -10,10 +10,10 @@ namespace KargoSim.Cargo
         /// <summary>Depoda, teslim edilmedi. Oyuncu inceleyip yukleyebilir.</summary>
         WaitingInDepot = 0,
 
-        /// <summary>Araca yuklendi. Teslimat bekliyor (Aşama 4).</summary>
+        /// <summary>Araca yuklendi. Teslimat bekliyor (AÅŸama 4).</summary>
         LoadedOnVehicle = 1,
 
-        /// <summary>Teslim edildi. Artik listeden cikar (Aşama 4).</summary>
+        /// <summary>Teslim edildi. Artik listeden cikar (AÅŸama 4).</summary>
         Delivered = 2,
 
         /// <summary>
@@ -39,14 +39,26 @@ namespace KargoSim.Cargo
         /// Paketlendi ve teslimata hazir. Araca yuklenebilir.
         /// </summary>
         Ready = 5,
-    }
+
+        /// <summary>
+        /// PAKETLENMIS, ARACTAYKEN KURYENIN ELINDE (asama 33).
+        ///
+        /// Once bu durum yoktu: aractan alinan kutu `_loaded` listesinde
+        /// kalirdi, boylece hem kasada hem elde sayiliyordu.
+        ///
+        /// Sona eklendi: kayit dosyalari durumu sayi olarak yaziyor, ara
+        /// degerler arasina eklenemez.
+        /// </summary>
+        Carried = 6,
+
+}
 
     /// <summary>
     /// Tek bir kargo. SAF C# sinifi (MonoBehaviour degil) - test edilebilir
     /// ve havuzlanabilir olsun diye.
     ///
     /// "Nereye" sorusu burada YALNIZCA bir tamsayidir. Gercek adres/koordinat
-    /// Aşama 4'te (teslimat) eklenir; simdilik kargo sistemi haritayi bilmez.
+    /// AÅŸama 4'te (teslimat) eklenir; simdilik kargo sistemi haritayi bilmez.
     /// </summary>
     public sealed class Parcel
     {
@@ -57,7 +69,7 @@ namespace KargoSim.Cargo
 
         public string RecipientName { get; }
 
-        /// <summary>Hedef adres kimligi. Aşama 4'te koordinata cozumlenir.</summary>
+        /// <summary>Hedef adres kimligi. AÅŸama 4'te koordinata cozumlenir.</summary>
         public int DestinationId { get; }
 
         public float WeightKg { get; }
@@ -109,7 +121,17 @@ namespace KargoSim.Cargo
         public bool IsBeingPackaged => State == ParcelState.Packaging;
 
         /// <summary>Araca yuklenebilir mi? (paketlenmisse)</summary>
-        public bool IsLoadable => State == ParcelState.Ready;
+        public bool IsLoadable => State == ParcelState.Ready || State == ParcelState.Carried;
+
+        /// <summary>Kutu su an kuryenin elinde mi?</summary>
+        public bool IsCarried => State == ParcelState.Carried;
+
+        /// <summary>Kutu kuryenin eline gecti (asama 33).</summary>
+        public void MarkCarried()
+        {
+            State = ParcelState.Carried;
+            TimeLoaded = -1f;
+        }
 
         /// <summary>0..1 arasi paketleme ilerlemesi.</summary>
         public float PackagingProgress01 => PackagingSteps.Progress01(PackagingProgress);
@@ -218,7 +240,7 @@ namespace KargoSim.Cargo
 
         /// <summary>
         /// Taban deger (TL). Oncelik carpani DAHIL DEGIL: odeme hesabini
-        /// ekonomi sistemi yapar (Aşama 5). Burada sadece kargonun kendi
+        /// ekonomi sistemi yapar (AÅŸama 5). Burada sadece kargonun kendi
         /// degeri duruyor, boylece iki yer hesap yapmaz.
         /// </summary>
         public int BaseValue { get; }
@@ -246,7 +268,7 @@ namespace KargoSim.Cargo
             TimeLoaded = systemTime;
         }
 
-        /// <summary>Teslim edildi (Aşama 4). Artik araçta degildir.</summary>
+        /// <summary>Teslim edildi (AÅŸama 4). Artik araÃ§ta degildir.</summary>
         public void MarkDelivered() => State = ParcelState.Delivered;
 
         /// <summary>Depoya geri alindi (gun sonu bos arac vb.).</summary>

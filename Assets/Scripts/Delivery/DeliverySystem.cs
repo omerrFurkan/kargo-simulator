@@ -131,41 +131,69 @@ namespace KargoSim.Delivery
 
             // Yuklenen kargolardan duraklari kur. Ayni adrese giden
             // kargolar TEK durakta toplanir - 5 kargo ayni apartmana
-            // gidiyorsa 5 kere durmamak dogru davranistir.
+            // gidiyorsa 5 kez durmamak dogru davranistir.
+            //
+            // ASAMA 33: rota yalnizca ARAÇTAKI kargolardan kuruluyordu.
+            // Kutu kuryenin eline gectiginde listeden cikinca durak
+            // kayboluyordu ("Durak yok") ve teslimat yapilamiyordu.
+            //
+            // Dogru kaynak: ARAÇTA + ELDE. Kutu kuryenin elindeyken de
+            // teslim edilecek bir adrese aittir; sadece fiziksel olarak
+            // araçta degildir.
             IReadOnlyList<Parcel> loaded = _cargo.Manifest.Loaded;
             for (int i = 0; i < loaded.Count; i++)
-            {
-                Parcel parcel = loaded[i];
-                if (parcel == null) continue;
+                AddParcelToRoute(loaded[i]);
 
-                DeliveryStop existing = FindStop(parcel.DestinationId);
-                if (existing != null)
-                {
-                    existing.AddParcel(parcel);
-                    continue;
-                }
+            IReadOnlyList<Parcel> carried = _cargo.Manifest.Carried;
+            for (int i = 0; i < carried.Count; i++)
+                AddParcelToRoute(carried[i]);
 
-                var point = _layout.Find(parcel.DestinationId);
-                if (point == null)
-                {
-                    // Haritada olmayan bir hedef: sessizce gecmek yerine
-                    // bir kez uyari ver, cunku oyuncu bu kargoyu asla
-                    // teslim edemez ve nedenini anlamaz.
-                    Debug.LogWarning("[DeliverySystem] Hedef adres haritada yok: " +
-                                     parcel.DestinationId + ". Kargo teslim edilemeyecek.");
-                    continue;
-                }
-
-                var stop = new DeliveryStop(parcel.DestinationId,
-                                            point.Value.position,
-                                            point.Value.displayName);
-                stop.AddParcel(parcel);
-                _stops.Add(stop);
-            }
-
-            _lastLoadedCount = _cargo?.Manifest?.LoadedCount ?? 0;
+            _lastLoadedCount = RoutedParcelCount();
             RebuildRoute();
         }
+
+        /// <summary>
+        /// ROtaya dahil edilen kutu sayisi: aracTAKI + kuryeNDEKI.
+        ///
+        /// Rota bu toplama bakarak yeniden kurulur. Yalnizca aracdekiler
+        /// sayilsaydi, kutuyu eline alan oyuncunun duragi kaybolurdu.
+        /// </summary>
+        private int RoutedParcelCount()
+        {
+            if (_cargo?.Manifest == null) return 0;
+            return _cargo.Manifest.LoadedCount + _cargo.Manifest.Carried.Count;
+        }
+
+        /// <summary>Bir kutuyu rotaya ekler (yoksa durak acar).</summary>
+        private void AddParcelToRoute(Parcel parcel)
+        {
+            if (parcel == null) return;
+
+            DeliveryStop existing = FindStop(parcel.DestinationId);
+            if (existing != null)
+            {
+                existing.AddParcel(parcel);
+                return;
+            }
+
+            var point = _layout.Find(parcel.DestinationId);
+            if (point == null)
+            {
+                // Haritada olmayan bir hedef: sessizce gecmek yerine bir
+                // kez uyari ver, cunku oyuncu bu kargoyu asla teslim
+                // edemez ve nedenini anlamaz.
+                Debug.LogWarning("[DeliverySystem] Hedef adres haritada yok: " +
+                                 parcel.DestinationId + ". Kargo teslim edilemeyecek.");
+                return;
+            }
+
+            var stop = new DeliveryStop(parcel.DestinationId,
+                                        point.Value.position,
+                                        point.Value.displayName);
+            stop.AddParcel(parcel);
+            _stops.Add(stop);
+        }
+
 
         /// <summary>Gun sifirlama (gun sonu / yeni gun).</summary>
         public void BeginDay()
@@ -193,7 +221,7 @@ namespace KargoSim.Delivery
             // Rotayi YUKLENEN KARGO SAYISINA bakarak yeniler. Event'e
             // guvenmek yanlis olurdu: kargo baska bir yoldan yuklenirse
             // (test, ileride gelen arac degisimi) rota bayat kalirdi.
-            int current = _cargo?.Manifest?.LoadedCount ?? 0;
+            int current = RoutedParcelCount();
             if (!_dirty && current == _lastLoadedCount) return;
 
             _dirty = false;

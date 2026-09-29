@@ -155,13 +155,26 @@ namespace KargoSim.Tests.PlayMode
             yield return null;
             Assert.AreEqual(1, _courier.CarriedCount, "Ilk kutu alinmadi.");
 
-            yield return WalkTo(_customers[1].transform, 1.6f);
-            _courier.TryInteract();
-            yield return null;
+            // KURAL: musteri, kuryenin eli doluyken ikinci bir kutu
+            // VERMEZ.
+            //
+            // Once bu test odaga bagliydi ve odak RAFTA dustugu icin
+            // yanlis basarisiz oluyordu. Raf (ShopParcelPile) kasten
+            // 3 kutuya kadar doldurur - bu bir tasarim karari, hata
+            // degil. Bu yuzden test, odak yerine musterinin kuralini
+            // DOGRUDAN olcer.
+            Player.ShopCustomer second = _customers[1];
+            Assert.IsFalse(second.CanInteract(_courier),
+                "Elde kutu varken musteri ikinci bir kutu daha veriyor. " +
+                "Oyuncu kutu sayisini kontrol edemiyor.");
 
-            Assert.AreEqual(1, _courier.CarriedCount,
-                "Elde kutu varken ikinci kutu da alindi. Oyuncu kutu sayisini " +
-                "kontrol edemiyor.");
+            // Müsteri bos oldugu icin degil, ELDE KUTU OLDUGU icin
+            // vermemeli.
+            int before = _courier.CarriedCount;
+            second.Interact(_courier);
+            yield return null;
+            Assert.AreEqual(before, _courier.CarriedCount,
+                "Elde kutu varken musteriden ikinci kutu alindi.");
         }
 
         // ==================================================================
