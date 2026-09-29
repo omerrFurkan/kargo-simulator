@@ -354,3 +354,64 @@ P2:
 Otomatik doğrulama tarafı hazır: **398 test yeşil, kabul akışı uçtan uca
 çalışıyor, kargo muhafazası kanıtlandı.** Eksik olan tek şey insan
 gözü ve elidir.
+
+---
+
+## EK: ASAMA 34 - ENVANTER + BAGAJ (Dongu 1 ve 2)
+
+Commitler: `23c0bfd` (envanter), `8f7c65c` (kurye gomulmesi).
+
+### D1. Karakter envanteri + arac bagaji (gorev #26, #89, #90)
+
+Oyuncu istedi: *"oyuncu envanterini her zaman acabilir, araclarin kargo
+yukledigimiz bagajlari acilir olsun, kendi envanterimizden aracin
+bagajindan kutu alip yerlestirebilelim, gittigimiz yere gore
+kargolarimizi gorelim"*. Once panel hic yoktu.
+
+- `I` tusu ile acilir (`TAB` depoya ozgu kalir).
+- `[1-3]` eldeki kutu -> araca, `[4-6]` arac -> el.
+- Kutular hedef/adres sirasina gore dizilir.
+- Kapasite doluysa kutu ELDE kalir ve sebep HUD'da yazilir.
+- Panel sahnelle degil, `CargoInventoryBuilder` ile koddan kurulur
+  (bu projede sahne YAML'i elle duzenlendi ve uc kez bozuldu).
+
+**Bulunan gercek hata 1:** `CargoManifest.FindById` yalnizca arac ve
+depo listelerini ariyordu. Kutu aractan cekilince `_carried`'a girdigi
+icin **bulunamiyor** ve yeniden araca konulamıyordu; oyuncu "kutu
+kayboldu" saniyordu. Artik `_carried` de araniyor.
+
+**Bulunan gercek hata 2:** `DeliverySystem.Tick` ->
+`RebuildRouteIfNeeded` her cagrida rota imlecini sifirliyor. Kargo
+elden araca gecince rota yeniden kuruldugu icin **oyuncu ilk durakta
+takili kalabiliyordu**.
+
+### D2. Kurye gorseli zemine gomulmus
+
+Oyuncu: *"karakterin yarisi harita zemininin altinda"*.
+
+- Fizik dogruydu: ayak-zemin farki **0.03 m**.
+- Ama **GORELEN model zemine 0.57 m gomuluyordu**.
+- Sebep: sahnede `Model` cocugunun `localPosition.y = -0.600`.
+- Duzeltme: `GameCompositionRoot.AlignCourierModelToFeet` modeli
+  calisma zamaninda ayak hizasina getirir. Sonuc: gomulme 0.03 m.
+
+**Ders (test hatasi):** ilk yazimda dikey raycast kuryenin **kendi
+CharacterController** kapsulune carpip "zemin" diye bas yuksekligi
+donuyordu; test yanlis olarak gecmisti. Ikinci hatam da assert'in
+sadece "yukari dogru gomulmeyi" kontrol etmesiydi; asagi dogru
+gomulmeyi (gercek hata) kaciriyordu. Iki hatayi da duzelttim:
+kendi collider eleniyor ve iki yon de kontrol ediliyor.
+
+### Dogrulama
+
+- EditMode **307/307**
+- PlayMode **103/103** (10 envanter + 3 gomulme testi eklendi)
+- Kabul akisi: para **250 -> 558**, elde kalan **0**, oyun istisnasi **0**
+
+### ACIK KALAN (Dongu 3)
+
+Olcum yaptim ama karar veremedim, bu yuzden **kirmaz birakmadim, dosyayi
+geri aldim**: Biciklet on tekeri aks sapmasi olculdu **40 derece**
+(yatay olmali). Bu gercek bir hata mi yoksa durus/donus egimi mi
+ayrimi yapilamadi. Biciklet kadro/teker sikayeti ancak onun uzerine
+kapatilabilir.
