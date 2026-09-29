@@ -363,6 +363,18 @@ namespace KargoSim.Core
                 pile.Configure(_cargo, boxes);
             }
 
+            // ASAMA 30: DUKKANA GELEN MUSTERILER (yeni kutu akisi).
+            //
+            // Oyuncu istedi: "npc ler gelsin, gelen npc ile konusup
+            // kutuyu alalim, dukkana istedigimiz bir yere yerlestirelim,
+            // dagitima cikarken elimize alip arabaya yerlestirelim".
+            //
+            // Sahneye elle nesne eklenmez; burada kurulur. Sebep: bu
+            // projede sahne YAML'ini elle duzenlemek defalarca bozdu
+            // (kamera baglantilari, etiketler, RectTransform'lar) ve
+            // uretim kodu her zaman daha guvenilir bir kaynak oldu.
+            SpawnShopCustomers(courier);
+
             // ASAMA 14: her aracin kendi kargo noktasi ve kendi
             // surucu kamerasi var.
             //
@@ -782,6 +794,78 @@ namespace KargoSim.Core
         ///
         /// Aracin SAGINDAN 2.2 m: kargo noktasi genelde aracin saginda
         /// oldugu icin oyuncu zaten o tarafta dolasir.
+        /// </summary>
+        /// <summary>
+        /// Dukkana gelen musterileri kurar.
+        ///
+        /// Oyuncu akisi (asama 30): musteri -> kutu (paketli) -> istedigin
+        /// yere koy -> eline al -> araya koy.
+        ///
+        /// Sahneye elle nesne eklenmez; burada kurulur. Sebep: bu projede
+        /// sahne YAML'ini elle duzenlemek defalarca bozdu (kamera
+        /// baglantilari, etiketler, RectTransform'lar) ve uretim kodu her
+        /// zaman daha guvenilir bir kaynak oldu.
+        /// </summary>
+        private void SpawnShopCustomers(Player.CourierController courier)
+        {
+            if (courier == null) return;
+
+            // Depo alanini referans al; yoksa kuryenin cevresinde kur.
+            var table = FindFirstObjectByType<Player.PackingTable>();
+            Vector3 origin = table != null
+                ? table.transform.position
+                : courier.transform.position;
+
+            const int musteriSayisi = 3;
+            const float aralik = 2.4f;
+
+            // Müsteriler masanin/rafin YANINA kurulur, ONUNE degil.
+            //
+            // Onceden depo onune (-2.6 m) konuluyordu ve odak rafta
+            // kalip kutu MUSTERIDEN degil RAFTAN aliniyordu. Iki hata da
+            // bundan geldi: kutu paketli degildi ve "elde kutu varken
+            // ikinci kutu alinmiyor" kontrolu tutmadi.
+            Vector3 side = origin + new Vector3(4.2f, 0f, 0f);
+
+            for (int i = 0; i < musteriSayisi; i++)
+            {
+                var go = new GameObject("ShopCustomer_" + i);
+                go.transform.SetParent(transform, false);
+
+                // Masanin yaninda, birbirinden aralikli.
+                float offset = (i - (musteriSayisi - 1) * 0.5f) * aralik;
+                Vector3 pos = side + Vector3.right * offset;
+
+                if (Physics.Raycast(pos + Vector3.up * 8f, Vector3.down,
+                                     out RaycastHit hit, 60f, ~0,
+                                     QueryTriggerInteraction.Ignore))
+                    pos.y = hit.point.y;
+
+                go.transform.position = pos;
+                go.transform.rotation = Quaternion.LookRotation(
+                    (origin - pos).normalized + Vector3.up, Vector3.up);
+
+                // Gorunur figur: kapsul govde + ETKILESIM COLLIDER'I.
+                //
+                // ONEMLI: Collider SILINMEZ. Odak sistemi (ScanForFocus)
+                // maske uzerinden collider arar; collider'i olmayan bir
+                // musteri hicbir zaman oda��a girmez ve oyuncu kutu
+                // alamazdi. (Once burada Destroy(getComponent<Collider>())
+                // vardi ve musteri gorunur ama etkilesilemezdi.)
+                var body = GameObject.CreatePrimitive(PrimitiveType.Capsule);
+                body.name = "Body";
+                body.transform.SetParent(go.transform, false);
+                body.transform.localPosition = new Vector3(0f, 0.9f, 0f);
+                body.transform.localScale = new Vector3(0.5f, 0.9f, 0.5f);
+
+                var customer = go.AddComponent<Player.ShopCustomer>();
+                customer.ConfigureForSetup("Musteri " + (i + 1));
+                customer.Configure(_cargo, courier);
+            }
+        }
+
+        /// <summary>
+        /// Kuryeyi aracin yanina, yuruyerek ulasabilecegi bir noktaya koyar.
         /// </summary>
         private void PlaceCourierNearVehicle(Player.CourierController courier)
         {
