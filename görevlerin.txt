@@ -1,0 +1,3223 @@
+# MASTER TASK
+
+# KARGO SİMÜLATÖRÜ — DEMO 1 TAM OYNANABİLİR VERTICAL SLICE
+
+---
+
+# 0. BU GÖREVİN ANA AMACI
+
+Bu görevde amaç yeni yeni sistemler eklemek değildir.
+
+Amaç:
+
+> **Kargo Simülatörü Demo 1'i baştan sona gerçek bir oyuncunun oynayabileceği, anlaşılır, stabil ve bütün temel mekanikleri birbirine bağlı tamamlanmış bir ilk demo haline getirmektir.**
+
+Şu andan itibaren başarı:
+
+```text
+Kod yazıldı
+≠
+Sistem var
+≠
+Test yeşil
+≠
+Oyun tamam
+```
+
+Başarı şu demektir:
+
+```text
+Unity'de PLAY'e bas
+↓
+oyuncu hiçbir debug müdahalesi yapmadan
+↓
+klavye + mouse ile
+↓
+Demo 1'in tamamını
+↓
+baştan sona oynayabilsin.
+```
+
+Oyuncu hiçbir noktada:
+
+* Inspector açmayacak
+* Console komutu kullanmayacak
+* Debug button kullanmayacak
+* Developer shortcut kullanmayacak
+* Kargoyu kod ile spawn etmeyecek
+* Aracı elle teleport etmeyecek
+* Script değiştirip devam etmeyecek
+* Scene'i durdurup yeniden çalıştırmak zorunda kalmayacak
+* Sistem bozulduğu için sahneyi yeniden kurmayacak
+
+---
+
+# 1. TEMEL OYUN TANIMI
+
+## Oyun
+
+**Kargo Simülatörü**
+
+Birinci şahıs bakış açısıyla oynanan 3D kuryelik/simülasyon oyunudur.
+
+Oyuncunun ana işi:
+
+```text
+Kargo al
+↓
+Taşı
+↓
+Aracına yükle
+↓
+Adresine git
+↓
+Kargoyu indir
+↓
+Kapıyı çal
+↓
+Müşteriden teslim kodunu al
+↓
+Kodu doğrula
+↓
+Teslim et
+↓
+Para kazan
+↓
+XP kazan
+↓
+Günün teslimatlarına devam et
+```
+
+Oyunun ana hissi:
+
+**"Gerçekten kargo taşıyormuşum gibi hissetmek."**
+
+Oyuncu sadece menüden "teslim et" butonuna basmayacak.
+
+Oyuncu:
+
+* yürüyerek gidecek
+* kutuyu eline alacak
+* kutuyu taşıyacak
+* bırakacak
+* aracına koyacak
+* araca binecek
+* sürecek
+* araçtan inecek
+* tekrar kargoyu alacak
+* kapıya götürecek
+* NPC ile etkileşime girecek
+* kod girecek
+* teslimatı tamamlayacak
+
+---
+
+# 2. OYUNCU PERSPEKTİFİ
+
+Oyun:
+
+**First Person / FPS**
+
+olacak.
+
+Oyuncu üçüncü şahıs karakter görmeyecek.
+
+Ekranın merkezinde:
+
+* crosshair
+* interaction hedefi
+* gerektiğinde etkileşim promptu
+
+olacak.
+
+Oyuncunun baktığı yer oyun dünyasını kontrol edecek.
+
+---
+
+# 3. TEMEL KONTROLLER
+
+Kullanılacak kontrol şeması:
+
+| Tuş       | İşlev                       |
+| --------- | --------------------------- |
+| W         | İleri                       |
+| A         | Sol                         |
+| S         | Geri / araçta geri          |
+| D         | Sağ                         |
+| Mouse     | Kamera                      |
+| Sol Click | Fare kilidini tekrar yakala |
+| E         | Contextual interaction      |
+| F         | Araca bin / araçtan in      |
+| G         | Elde taşınan kutuyu bırak   |
+| Space     | Bisiklet freni              |
+| Shift     | Koş                         |
+| TAB       | Depo / gün paneli           |
+| 1-9       | Depo panelinde seçim        |
+
+## E TUŞU
+
+E'nin sistemi bağlamsal olacak.
+
+Oyuncu neye bakıyorsa ve ne kadar yakınsa ona göre:
+
+```text
+E ile konuş
+E ile al
+E ile bırak
+E ile yükle
+E ile kapıyı çal
+E ile aç
+E ile etkileş
+```
+
+gibi prompt çıkacak.
+
+Aynı anda birden fazla prompt çıkmayacak.
+
+Yanlış obje seçilmeyecek.
+
+En yakın ve geçerli interactable seçilecek.
+
+---
+
+# 4. INTERACTION SİSTEMİ
+
+Bu sistem oyunun temelidir.
+
+Oyuncu kameranın merkezinden raycast yapacak.
+
+Interaction için minimum şart:
+
+```text
+distance
++
+layer
++
+IInteractable
++
+CanInteract
+```
+
+kontrol edilmeli.
+
+## Interaction önceliği
+
+Birden fazla obje aynı görüş alanındaysa:
+
+1. gerçekten crosshair'a en yakın
+2. etkileşim mesafesinde olan
+3. `CanInteract == true`
+4. oyuncunun mevcut durumuna uygun olan
+
+obje kazanır.
+
+Örneğin oyuncu eli boşken:
+
+```text
+PackingTable
+Shelf
+Box
+```
+
+aynı noktadaysa yalnızca gerçekten kullanılabilir ve hedeflenen obje seçilecek.
+
+Interaction sistemi:
+
+* yanlış objeye kilitlenmeyecek
+* trigger overlap yüzünden rastgele obje seçmeyecek
+* UI prompt yanlış objeyi göstermeyecek
+
+---
+
+# 5. OYUNCU DURUMLARI
+
+Oyuncunun durumları net olmalı.
+
+Minimum:
+
+```text
+Idle
+Walking
+Running
+HoldingCargo
+NearVehicle
+Driving
+Interacting
+EnteringCode
+DaySummary
+DepotMenu
+```
+
+Duruma göre kontrol kısıtlanacak.
+
+Örneğin:
+
+```text
+Driving
+→ W/A/S/D araç içindir
+→ mouse kamera içindir
+→ normal yaya hareketi kapalıdır
+```
+
+```text
+HoldingCargo
+→ Shift kullanılabilir
+→ oyuncu kutuyu taşır
+→ F araç girişine uygun olabilir
+```
+
+---
+
+# 6. KARGO SİSTEMİ
+
+Her kargo gerçek bir gameplay nesnesidir.
+
+Her `Parcel` minimum olarak:
+
+```text
+ParcelId
+ReceiverName
+AddressId
+DeliveryCode
+Weight
+Volume
+Value
+Priority
+Deadline
+Fragile
+PackagingState
+DeliveryState
+```
+
+tutmalı.
+
+---
+
+# 7. KARGO TÜRLERİ
+
+Demo 1'de 6 tür:
+
+### Belge
+
+```text
+0.4 – 1.2 kg
+1 – 3 L
+```
+
+### Kırtasiye
+
+```text
+1 – 3 kg
+4 – 12 L
+```
+
+### Elektronik
+
+```text
+1.5 – 5 kg
+8 – 25 L
+```
+
+### Gıda
+
+```text
+2 – 6 kg
+10 – 30 L
+```
+
+### İlaç
+
+```text
+0.5 – 2 kg
+2 – 8 L
+```
+
+### Eşya
+
+```text
+3 – 8 kg
+15 – 45 L
+```
+
+Bu değerler doğrudan gameplay kurallarında kullanılacak.
+
+---
+
+# 8. KARGO FİZİKSEL OLARAK TAŞINMALI
+
+BU KRİTİK.
+
+Kutu:
+
+```text
+E
+↓
+al
+↓
+elde görün
+↓
+yürü
+↓
+taşı
+↓
+G
+↓
+bırak
+```
+
+şeklinde çalışmalı.
+
+Kutu oyuncunun önündeki gerçek bir fiziksel nesnedir.
+
+Oyuncu:
+
+* kutuyu eline alabilir
+* dükkânda taşıyabilir
+* yere bırakabilir
+* masaya götürebilir
+* tekrar alabilir
+* araca koyabilir
+* araçtan çıkarabilir
+* teslim noktasına taşıyabilir
+
+---
+
+# 9. KUTU ALMA
+
+Oyuncu kutuya bakar.
+
+Prompt:
+
+```text
+[E] Kargoyu al
+```
+
+Oyuncu E'ye basınca:
+
+```text
+Cargo state:
+World
+→
+Held
+```
+
+olur.
+
+Kutu oyuncunun elinde görünür.
+
+Kutu:
+
+* kameraya yapışık olmamalı
+* fiziksel olarak kontrol edilebilir olmalı
+* oyuncunun yüzünün içine girmemeli
+* duvarın içinden geçmemeli
+* başka kutuları gereksiz yere patlatmamalı
+
+---
+
+# 10. KUTU BIRAKMA
+
+Oyuncu G'ye bastığında:
+
+```text
+Held
+↓
+World
+```
+
+olur.
+
+Kutu oyuncunun önündeki uygun zemine bırakılmalı.
+
+Kutu:
+
+* havada kalmamalı
+* yerin içine gömülmemeli
+* gereksiz hızla fırlamamalı
+* başka kutuların içine spawn olmamalı
+
+---
+
+# 11. KARGO FİZİK KURALI
+
+Kargo fiziksel olacak ama gameplay'i sabote edecek kadar gerçekçi olmayacak.
+
+Hedef:
+
+**Physical enough to feel real, controlled enough to remain fun.**
+
+Kutu:
+
+* duvarın içine gömülmemeli
+* oyuncuyu kilitlememeli
+* aracın içine sıkışmamalı
+* başka objelere sonsuz kuvvet uygulamamalı
+
+---
+
+# 12. PAKETLEME
+
+Mevcut paketleme sistemi korunacak.
+
+Paketleme akışı:
+
+```text
+Kutu
+↓
+Packing Table
+↓
+E
+↓
+Packaging UI
+↓
+Adımlar
+↓
+Ready
+```
+
+Paketlenmiş kargo:
+
+```text
+PackagingState = Ready
+```
+
+olmalı.
+
+---
+
+# 13. PAKETLEME TASARIMI
+
+Paketleme sisteminin amacı:
+
+Oyuncuya "kargo işi yapıyorum" hissi vermektir.
+
+Ancak gereksiz uzun olmamalı.
+
+Oyuncu:
+
+```text
+kartonu al
+↓
+katla
+↓
+kutuyu oluştur
+↓
+ürünü koy
+↓
+bandı kapat
+↓
+etiketi koy
+```
+
+gibi adımları gerçekleştirir.
+
+Bu mekanik görsel olarak okunabilir olmalı.
+
+Oyuncu:
+
+> "Ne yapacağım?"
+
+diye kalmamalı.
+
+Her adımda kısa yönlendirme olmalı.
+
+---
+
+# 14. PAKETLEMEDE HATA KONTROLÜ
+
+Yanlış işlem yapılırsa:
+
+* oyun kilitlenmeyecek
+* kargo kaybolmayacak
+* state bozulmayacak
+
+Oyuncuya açıklayıcı mesaj verilecek.
+
+Örnek:
+
+```text
+Önce kutuyu oluşturmalısın.
+```
+
+---
+
+# 15. ARAÇLAR
+
+Demo 1 brief'inde iki araç bulunuyor:
+
+### Kargo Bisikleti
+
+```text
+60 kg
+150 L
+3 teker
+```
+
+### Kargo Vapuru
+
+Brief'te bu isim kullanılmaktadır.
+
+Aynı brief içerisinde dört tekerli araç olarak tarif edilmiştir.
+
+**Bu isim/araç tanımını kendiliğinden değiştirme.**
+
+Kodda veya asset seçiminde anlam çelişkisi varsa bunu raporda açıkça belirt.
+
+Ancak oynanışı bozacak şekilde oyuncuya bırakılamayan bir state oluşturma.
+
+---
+
+# 16. ARAÇLARA BİNME
+
+Oyuncu aracın yanına gelir.
+
+Prompt:
+
+```text
+[F] Araca bin
+```
+
+F'ye basınca:
+
+```text
+OnFoot
+↓
+EnteringVehicle
+↓
+Driving
+```
+
+Oyuncu sürüş pozisyonuna geçer.
+
+Kamera sürücü kamerasına geçer.
+
+---
+
+# 17. ARAÇTAN İNME
+
+Araç tamamen durmaya yakın olmalı.
+
+Oyuncu:
+
+```text
+F
+```
+
+basınca:
+
+```text
+Driving
+↓
+ExitVehicle
+↓
+OnFoot
+```
+
+olur.
+
+Oyuncu:
+
+* araç içine doğmamalı
+* collider içine doğmamalı
+* yere gömülmemeli
+* ağacın/duvarın içine ışınlanmamalı
+
+Araç oyuncudan bağımsız kalmalı.
+
+ÇOK ÖNEMLİ:
+
+```text
+Player exits vehicle
+≠
+Vehicle follows player
+```
+
+Araç oyuncunun child'ı olmamalı.
+
+Araç, oyuncu indikten sonra kendi fizik davranışını sürdürmeli.
+
+---
+
+# 18. ARAÇ FİZİĞİ
+
+Hedef simülasyon değil:
+
+**arcade delivery vehicle**
+
+olacak.
+
+Araç:
+
+* kalkmalı
+* durmalı
+* dönmeli
+* geri gitmeli
+* devrilmemeli
+* saçma şekilde zıplamamalı
+
+---
+
+# 19. TEKERLEK SİSTEMİ
+
+Her araçta:
+
+```text
+Visual Wheel
+=
+WheelCollider
+```
+
+uyumu korunacak.
+
+Tekerler:
+
+* görsel olarak doğru konumda
+* doğru radius
+* doğru rotasyon
+* doğru steering
+* doğru suspension
+
+olmalı.
+
+Oyuncu oyuna girdiğinde:
+
+**tekerlerin modelden kopuk durması yasaktır.**
+
+---
+
+# 20. BİSİKLET GÖRSELİ
+
+Bisiklet gerçekten kargo bisikleti gibi görünmeli.
+
+Minimum:
+
+```text
+3 wheel
+frame
+handlebar
+seat
+pedal
+cargo basket
+cargo area
+```
+
+olmalı.
+
+Primitive kullanılabilir.
+
+Ama:
+
+```text
+3 teker var
+```
+
+demek yeterli değildir.
+
+Parçaların görsel olarak birbirine oturması gerekir.
+
+---
+
+# 21. BİSİKLET SÜRÜŞÜ
+
+Kontroller:
+
+```text
+W = ileri
+S = geri
+A = sol
+D = sağ
+Space = fren
+```
+
+Hedef:
+
+```text
+kalkış
+→ düzgün
+hızlanma
+→ stabil
+dönüş
+→ kontrol edilebilir
+fren
+→ kontrollü
+```
+
+Bisiklet:
+
+* gereksiz yere 45-60 derece yatmayacak
+* devrilmeyecek
+* küçük fizik hatasında takla atmayacak
+* yerde sürünmeyecek
+* oyuncuyu savurmayacak
+
+---
+
+# 22. ARAÇ KAPASİTESİ
+
+Kapasite iki ayrı kritere bağlı:
+
+```text
+Weight
+AND
+Volume
+```
+
+İkisini de kontrol et.
+
+Örneğin:
+
+```text
+Bisiklet:
+60 kg
+150 L
+```
+
+Herhangi biri aşılırsa yükleme yapılmaz.
+
+Mesaj:
+
+```text
+Kapasite dolu:
+52 / 60 kg
+147 / 150 L
+```
+
+gibi anlaşılır olmalı.
+
+---
+
+# 23. KARGO YÜKLEME
+
+Oyuncu paketli kutuyu taşır.
+
+Aracın kargo bölgesine yaklaşır.
+
+Prompt:
+
+```text
+[E] Araca yükle
+```
+
+E:
+
+```text
+Held
+↓
+LoadedIntoVehicle
+```
+
+yapar.
+
+Kargo:
+
+* araçta görünür
+* fiziksel olarak yerinde durur
+* capacity hesabına girer
+
+---
+
+# 24. KARGO ARAÇTA GÖRÜNÜRLÜĞÜ
+
+Kargo sadece sayı olmamalı.
+
+Oyuncu bakınca:
+
+```text
+3 kutu var
+```
+
+gerçekten görmeli.
+
+Kargolar:
+
+* kasada
+* bagajda
+* belirlenen cargo anchor'larında
+
+görünür.
+
+---
+
+# 25. KARGO ARAÇTAN ALMA
+
+Oyuncu araç kargosuna bakar.
+
+Prompt:
+
+```text
+[E] Kargoyu al
+```
+
+E:
+
+```text
+LoadedIntoVehicle
+↓
+Held
+```
+
+yapar.
+
+Doğru kutu seçilmeli.
+
+---
+
+# 26. KARGO KAYBOLMA KURALI
+
+Aşağıdaki işlemlerden hiçbirinde kargo sessizce yok olamaz:
+
+* araçtan inme
+* araçtan binme
+* scene reload
+* delivery başarısızlığı
+* wrong code
+* NPC not home
+* capacity fail
+
+Bir kargo bir state'ten diğerine geçiyorsa kayda değer şekilde state değişimi yapılmalı.
+
+---
+
+# 27. DEPODAKİ MÜŞTERİ
+
+Günün başında oyuncu depoya gider.
+
+Müşteriler:
+
+* görünür
+* etkileşilebilir
+* sırayla paket verir
+
+Oyuncu:
+
+```text
+E
+```
+
+ile müşteriyle konuşur.
+
+Müşteri:
+
+```text
+paketli kutu
+```
+
+verir.
+
+Bu kutunun tekrar paketlenmesi gerekmez.
+
+---
+
+# 28. KARGO ALMA AKIŞI
+
+```text
+Customer
+↓
+E
+↓
+Parcel created/assigned
+↓
+Parcel appears in world
+↓
+Player E
+↓
+Player holds parcel
+```
+
+Kargo oyuncuya görünmez şekilde çantaya eklenmemeli.
+
+---
+
+# 29. DEPO / PANEL
+
+TAB:
+
+```text
+Depot Panel
+```
+
+açar.
+
+Panel açıkken dünya kontrolleri yanlışlıkla çalışmamalı.
+
+Panelde:
+
+* kargo listesi
+* kargo ID
+* alıcı
+* adres
+* ağırlık
+* hacim
+* tür
+* öncelik
+* kırılgan
+* deadline
+* durum
+
+gösterilebilir.
+
+Kargo seçimi:
+
+```text
+1-9
+```
+
+ile yapılabilir.
+
+Mouse hover:
+
+```text
+Tooltip
+```
+
+açar.
+
+---
+
+# 30. ADRES SİSTEMİ
+
+Her teslimat adresinin:
+
+```text
+AddressId
+Building
+Door
+NPC
+Position
+```
+
+olmalı.
+
+Kargo:
+
+```text
+Parcel.AddressId
+```
+
+ile bağlı olmalı.
+
+Yanlış NPC'ye teslim yapılamaz.
+
+---
+
+# 31. ROTA SİSTEMİ
+
+Oyuncunun aktif hedefi HUD'da görünür.
+
+Örnek:
+
+```text
+Sıradaki teslimat
+Derya Akın
+Adres: 14
+Mesafe: 237 m
+```
+
+Minimap:
+
+* player
+* vehicle
+* depot
+* delivery stops
+
+göstermeli.
+
+---
+
+# 32. TESLİMAT HEDEFİ
+
+Aktif teslimat:
+
+* HUD'da görünür
+* minimap'te görünür
+* dünyada marker ile görünür
+
+Marker:
+
+* oyuncuyu boğacak kadar büyük olmamalı
+* yanlış hedef göstermemeli
+
+---
+
+# 33. KAPI ETKİLEŞİMİ
+
+Oyuncu doğru adrese gelir.
+
+Araçtan iner.
+
+Kargoyu aracından alır.
+
+Kapıya gider.
+
+Prompt:
+
+```text
+[E] Kapıyı çal
+```
+
+E:
+
+```text
+DoorKnocked
+```
+
+olayını başlatır.
+
+Zil sesi çıkar.
+
+---
+
+# 34. NPC DURUMLARI
+
+Minimum:
+
+```text
+Home
+NotHome
+Answered
+WrongCode
+Delivered
+```
+
+NPC her durumda doğru gameplay cevabını vermeli.
+
+---
+
+# 35. MÜŞTERİ EVE YOKSA
+
+NPC evde değilse:
+
+```text
+Kapı çal
+↓
+cevap yok
+```
+
+Oyuncuya:
+
+```text
+Müşteri şu anda evde değil.
+```
+
+mesajı ver.
+
+Kargo:
+
+**kaybolmamalı.**
+
+Teslimat:
+
+**tamamlanmamalı.**
+
+Oyuncu daha sonra geri dönebilmeli.
+
+---
+
+# 36. TESLİM KODU
+
+Her kargo için:
+
+**4 haneli benzersiz teslim kodu**
+
+olmalı.
+
+Kod:
+
+* kargoya özel
+* rastgele veya deterministik
+* aynı anda bütün kargolarda aynı olmamalı
+
+---
+
+# 37. NPC KODU
+
+NPC doğru kodu söylemeli.
+
+Kod oyuncu tarafından anlaşılabilir biçimde iletilmeli.
+
+Ses varsa:
+
+* anlaşılır
+
+UI varsa:
+
+```text
+Müşteri:
+"Teslim kodum 4827."
+```
+
+şeklinde okunabilir.
+
+Oyuncu kodu ezberleyip girebilmeli.
+
+---
+
+# 38. KOD GİRİŞ EKRANI
+
+Panel:
+
+```text
+Teslimat Kodu
+
+_ _ _ _
+
+[ONAYLA]
+```
+
+olmalı.
+
+Kontroller:
+
+```text
+0-9
+Enter = onay
+Backspace = sil
+Esc = iptal
+```
+
+Mouse Confirm çalışmalı.
+
+UI açıldığında mutlaka çalışan bir EventSystem olmalı.
+
+---
+
+# 39. DOĞRU KOD
+
+```text
+Correct
+↓
+DeliveryCompleted
+↓
+Money
+↓
+XP
+↓
+Parcel = Delivered
+↓
+Next route
+```
+
+---
+
+# 40. YANLIŞ KOD
+
+```text
+Wrong
+↓
+No delivery
+↓
+No payout
+↓
+No XP
+↓
+Cargo remains
+↓
+Player can retry
+```
+
+Oyun kilitlenmemeli.
+
+Kod ekranı bozulmamalı.
+
+Kargo silinmemeli.
+
+---
+
+# 41. YANLIŞ KARGO
+
+Oyuncu yanlış adresin kapısına yanlış kargo getirirse:
+
+```text
+Delivery rejected
+```
+
+olmalı.
+
+Para:
+
+```text
++0
+```
+
+XP:
+
+```text
++0
+```
+
+Kargo:
+
+```text
+Undelivered
+```
+
+kalmalı.
+
+---
+
+# 42. AYNI KARGOYU İKİ KEZ TESLİM ETME
+
+Bir kargo:
+
+```text
+Delivered
+```
+
+olduktan sonra tekrar:
+
+```text
+TryDeliver
+```
+
+edilemez.
+
+İkinci deneme:
+
+```text
+Already delivered
+```
+
+mantığında reddedilmeli.
+
+İkinci ödeme verilmemeli.
+
+İkinci XP verilmemeli.
+
+---
+
+# 43. PARA SİSTEMİ
+
+Her başarılı teslimat para kazandırır.
+
+Mevcut ekonomi sistemi korunacak.
+
+Gelir hesaplamasında brief'teki:
+
+* base payout
+* weight
+* priority
+* early delivery bonus
+* late penalty
+* fragile risk
+
+gibi değerler kullanılabilir.
+
+Ancak ekonomi sistemi teslimat sistemine gömülmemeli.
+
+Ekonomi ayrı servis olmalı.
+
+---
+
+# 44. XP
+
+Başarılı teslimat:
+
+```text
+XP +
+```
+
+oluşturur.
+
+XP:
+
+* seviye çubuğunda görünür
+* seviye atlamada UI gösterir
+
+---
+
+# 45. SEVİYE
+
+Oyuncunun level sistemi:
+
+```text
+Level 1
+↓
+XP
+↓
+Level 2
+↓
+...
+```
+
+şeklinde büyür.
+
+Level değişimi:
+
+* kargo kapasitesi
+* ileride açılacak araçlar
+
+için temel kullanılabilir.
+
+Demo 1'de gereksiz yetenek ağacı oluşturma.
+
+---
+
+# 46. GÜN SİSTEMİ
+
+Gün:
+
+**08:00'de başlar.**
+
+Demo 1'e göre:
+
+**1 oyun günü = 5 dakika**
+
+olmalı.
+
+Saat HUD'da görünür.
+
+Örneğin:
+
+```text
+08:14
+08:45
+09:10
+```
+
+---
+
+# 47. GÜNÜN BİTMESİ
+
+Gün sonunda:
+
+```text
+Day End
+↓
+Summary
+↓
+Autosave
+```
+
+olmalı.
+
+Özet:
+
+```text
+Bugün:
+Teslimat: 8
+Kazanç: 2.450
+XP: +420
+Geç teslim: 1
+Başarısız: 0
+```
+
+gibi bilgileri göstermeli.
+
+---
+
+# 48. GÜN SONU
+
+Özet sırasında:
+
+* oyuncu hareket etmemeli
+* araç sürülmemeli
+* yanlış input alınmamalı
+
+TAB veya belirtilen UI kontrolü ile panel yönetilmeli.
+
+---
+
+# 49. SAVE SYSTEM
+
+Kapatıp açınca kritik ilerleme korunmalı.
+
+Minimum:
+
+```text
+Money
+XP
+Level
+Day
+Parcel states
+Delivery states
+Progress
+```
+
+saklanmalı.
+
+Save:
+
+```text
+Application.persistentDataPath/save.json
+```
+
+üzerinden çalışmalı.
+
+JSON kullanılacak.
+
+Schema version bulunacak.
+
+Atomic write yaklaşımı korunacak.
+
+---
+
+# 50. HUD
+
+HUD ekranın kenarlarına dağılacak.
+
+## Sol üst
+
+```text
+Money
+Level
+XP
+Time
+```
+
+## Sağ üst
+
+```text
+Minimap
+```
+
+## Sol alt
+
+```text
+Cargo:
+3 / ?
+52 kg / 60 kg
+110 L / 150 L
+```
+
+## Sağ alt
+
+```text
+Next Delivery
+Receiver
+Address
+Distance
+```
+
+## Alt orta
+
+```text
+[E] Kargoyu al
+[E] Kapıyı çal
+[F] Araca bin
+```
+
+gibi context prompt.
+
+Merkez yalnız:
+
+* code panel
+* day summary
+
+gibi zorunlu UI'lar için kullanılmalı.
+
+---
+
+# 51. UI UX KURALI
+
+Oyuncunun bilmediği bir şeyi UI açıklamalı.
+
+Hata mesajı:
+
+```text
+Yanlış.
+```
+
+olmamalı.
+
+Yerine:
+
+```text
+Bu kargo 14 numaralı adrese ait.
+```
+
+gibi yardımcı mesaj verilebilir.
+
+Her hata mesajı mümkünse:
+
+> "Ne yanlış oldu?" + "Şimdi ne yapmalıyım?"
+
+sorusunu cevaplasın.
+
+---
+
+# 52. HATA DURUMLARI
+
+Her sistemin hata durumları kontrol edilecek.
+
+## Kargo
+
+* yanlış kargo
+* kapasite dolu
+* paketlenmemiş
+* zaten teslim
+* obje yok
+* invalid parcel
+
+## Araç
+
+* çok hızlı çıkma
+* duvarın içine doğma
+* araçtan inememe
+* oyuncuyla birlikte hareket etme
+* wheel mismatch
+* collider mismatch
+
+## NPC
+
+* evde değil
+* yanlış kod
+* yanlış kargo
+* tekrar teslim
+
+## UI
+
+* EventSystem yok
+* iki panel aynı anda açık
+* input kilitlenmesi
+* mouse çalışmaması
+* Enter çalışmaması
+* Esc çalışmaması
+
+---
+
+# 53. FİZİKSEL DÜNYA KURALLARI
+
+Sahnedeki temel objeler:
+
+```text
+Ground
+Road
+Building
+Depot
+Vehicle
+Cargo
+NPC
+Door
+PackingTable
+```
+
+olmalı.
+
+Collider'lar doğru çalışmalı.
+
+Oyuncu:
+
+* yerin içine girmemeli
+* duvarlardan geçmemeli
+* kutuya takılıp kalmamalı
+* araç içine spawn olmamalı
+
+---
+
+# 54. COLLIDER KURALI
+
+Her collider'ın amacı belli olmalı.
+
+Visual mesh collider ile gameplay collider gereksiz şekilde karıştırılmamalı.
+
+Araç:
+
+```text
+Body collider
+WheelCollider
+Cargo collider
+```
+
+ayrı mantıkla ele alınmalı.
+
+---
+
+# 55. ARAÇ FİZİĞİ VE OYUNCU
+
+Oyuncu araçtayken:
+
+```text
+Player movement OFF
+Vehicle movement ON
+```
+
+Oyuncu araçtan çıkınca:
+
+```text
+Player movement ON
+Vehicle input OFF
+```
+
+olmalı.
+
+Bu iki sistem hiçbir zaman aynı anda aktif kalmamalı.
+
+---
+
+# 56. ARAÇ KAMERASI
+
+Oyuncu araca binince:
+
+```text
+OnFootCamera OFF
+VehicleCamera ON
+```
+
+Araçtan inince:
+
+```text
+VehicleCamera OFF
+OnFootCamera ON
+```
+
+olmalı.
+
+Aynı anda birden fazla MainCamera aktif kalmamalı.
+
+Kamera:
+
+* clipping yapmamalı
+* modelin içine girmemeli
+* araçtan çıkınca bozulmamalı
+
+---
+
+# 57. OYNANIŞTA TUTARLILIK
+
+Bir sistem oyuncuya bir şey söylüyorsa gerçekten o şeyi yapabilmeli.
+
+Örnek:
+
+UI:
+
+```text
+[E] Kargoyu al
+```
+
+diyorsa E'ye basınca gerçekten kargo alınmalı.
+
+UI:
+
+```text
+[F] Araca bin
+```
+
+diyorsa F'ye basınca gerçekten binilmeli.
+
+UI:
+
+```text
+[E] Kargoyu yükle
+```
+
+diyorsa gerçekten yüklenmeli.
+
+Prompt ile gerçek gameplay arasında tutarsızlık yasaktır.
+
+---
+
+# 58. OYUNCUNUN TAM DEMO SENARYOSU
+
+Demo 1'in ana kabul senaryosu tam olarak:
+
+```text
+GAME START
+↓
+Oyuncu ayakta başlar
+↓
+Bisiklet oyuncunun yanında
+↓
+Depoya gider
+↓
+Müşteriyi bulur
+↓
+E ile konuşur
+↓
+Paketli kargoyu alır
+↓
+Kargoyu fiziksel olarak eline alır
+↓
+Bir yere bırakır
+↓
+Tekrar alır
+↓
+Bisiklete gider
+↓
+F ile bisiklete biner
+↓
+Kargo yükleme noktasına gelir
+↓
+E ile kargoyu bisiklete koyar
+↓
+Kargo bisiklette görünür
+↓
+Sürüşe başlar
+↓
+Adrese gider
+↓
+Park eder
+↓
+F ile bisikletten iner
+↓
+Oyuncu bağımsız yürür
+↓
+Kargoyu bisikletten alır
+↓
+Kapıya gider
+↓
+E ile kapıyı çalar
+↓
+NPC cevap verir
+↓
+NPC teslim kodunu verir
+↓
+Kod paneli açılır
+↓
+Oyuncu kodu girer
+↓
+Doğru kod
+↓
+Teslimat tamamlanır
+↓
+Para artar
+↓
+XP artar
+↓
+HUD güncellenir
+↓
+Rota sonraki adrese geçer
+↓
+Oyuncu tekrar araca döner
+↓
+Yeni teslimata gider
+↓
+Gün bitene kadar devam eder
+↓
+Gün sonu
+↓
+Summary
+↓
+Autosave
+↓
+Yeni gün
+```
+
+BU AKIŞIN TAMAMINI OYNAMADAN:
+
+**DEMO 1 TAMAMLANMIŞ SAYILMAZ.**
+
+---
+
+# 59. NEGATİF TEST SENARYOLARI
+
+Pozitif test kadar negatif test de zorunludur.
+
+## Test A — Yanlış kod
+
+```text
+Kapı
+↓
+Yanlış kod
+↓
+Teslim yok
+↓
+Para yok
+↓
+XP yok
+↓
+Tekrar dene
+```
+
+## Test B — Müşteri yok
+
+```text
+Kapı
+↓
+NPC yok
+↓
+Teslim yok
+↓
+Kargo korunuyor
+```
+
+## Test C — Yanlış kargo
+
+```text
+Yanlış adres
+↓
+Teslim reddediliyor
+↓
+Para yok
+```
+
+## Test D — Kapasite
+
+```text
+Capacity full
+↓
+Cargo loading rejected
+↓
+Cargo remains in hand
+```
+
+## Test E — Araçtan inme
+
+```text
+Vehicle
+↓
+F
+↓
+Player independent
+↓
+Vehicle stays
+```
+
+## Test F — Kapat/aç
+
+```text
+Deliver cargo
+↓
+Save
+↓
+Quit
+↓
+Launch
+↓
+State preserved
+```
+
+---
+
+# 60. KARGO STATE MACHINE
+
+Kargo state'leri açıkça tanımlanmalı.
+
+Örnek:
+
+```text
+Created
+↓
+Available
+↓
+Held
+↓
+Dropped
+↓
+Packaging
+↓
+Ready
+↓
+Loaded
+↓
+Held
+↓
+AtDoor
+↓
+Delivered
+```
+
+Geçersiz state geçişleri reddedilmeli.
+
+Örneğin:
+
+```text
+Delivered
+→
+Held
+```
+
+yapılamaz.
+
+```text
+Packaging
+→
+Loaded
+```
+
+yapılamaz.
+
+---
+
+# 61. ARAÇ STATE MACHINE
+
+```text
+Parked
+↓
+Entering
+↓
+Driving
+↓
+Braking
+↓
+Parked
+↓
+Exiting
+↓
+PlayerOnFoot
+```
+
+Player state ile vehicle state senkronize edilmeli.
+
+---
+
+# 62. NPC STATE MACHINE
+
+```text
+Home
+↓
+Knocked
+↓
+Answered
+↓
+CodeGiven
+↓
+DeliverySuccess
+```
+
+Alternatif:
+
+```text
+Knocked
+↓
+NotHome
+```
+
+ve:
+
+```text
+Answered
+↓
+WrongCode
+↓
+Retry
+```
+
+---
+
+# 63. OLAY MİMARİSİ
+
+Mevcut:
+
+**Composition Root + Event Bus**
+
+korunacak.
+
+Sistemler doğrudan birbirine gereksiz şekilde bağlanmayacak.
+
+Örnek:
+
+```text
+Door
+→ DoorKnocked
+
+NPCSystem
+→ NPCAnswered
+
+CodeEntry
+→ DeliveryCodeSubmitted
+
+Validator
+→ CodeCorrect / CodeWrong
+
+DeliverySystem
+→ ParcelDelivered
+
+Economy
+→ Payment
+
+Progress
+→ XP
+```
+
+Event isimlerini gereksiz çoğaltma.
+
+Mevcut `GameEvents` kullan.
+
+---
+
+# 64. SİSTEM SORUMLULUKLARI
+
+### Player
+
+Oyuncu hareketi.
+
+### Interaction
+
+Oyuncunun baktığı objeyi ve interaction'ı seçer.
+
+### Cargo
+
+Kargo lifecycle.
+
+### Packaging
+
+Paketleme kuralları.
+
+### Vehicle
+
+Araç hareketi.
+
+### Cargo Area
+
+Araç yük alanı.
+
+### Delivery
+
+Teslimat kuralları.
+
+### NPC
+
+Müşteri davranışı.
+
+### Economy
+
+Para.
+
+### Progression
+
+XP / level.
+
+### Day System
+
+Saat / gün.
+
+### UI
+
+Görsel sunum.
+
+### Save
+
+Kalıcı veri.
+
+Hiçbir sınıf gereksiz yere her şeyi yapmamalı.
+
+---
+
+# 65. PERFORMANS
+
+Demo düşük/orta seviye bilgisayarlarda çalışmalı.
+
+Hedef:
+
+```text
+1080p
+60 FPS
+```
+
+Mevcut URP düşük maliyetli yapı korunacak.
+
+Kaçınılacak:
+
+* gereksiz Update
+* sürekli Instantiate/Destroy
+* LINQ hot path
+* frame başına allocation
+* gereksiz FindObjectOfType
+* gereksiz scene taraması
+* fiziksel olarak aşırı sayıda active Rigidbody
+
+---
+
+# 66. TEST FELSEFESİ
+
+Bu görevden sonra:
+
+**"Testler yeşil."**
+
+tek başına kabul değildir.
+
+İki ayrı doğrulama gerekir:
+
+## Automated
+
+* Compile
+* EditMode
+* PlayMode
+* state transitions
+* ekonomi
+* save/load
+
+## Manual
+
+Gerçek:
+
+* W
+* A
+* S
+* D
+* Mouse
+* E
+* F
+* G
+* Space
+* Shift
+* TAB
+
+ile oynama.
+
+---
+
+# 67. MANUEL TEST ZORUNLULUĞU
+
+Gerçek manuel test yapamıyorsan:
+
+```text
+NOT EXECUTED
+```
+
+yaz.
+
+Kesinlikle:
+
+```text
+PASS
+```
+
+yazma.
+
+Ayrıca:
+
+```text
+"PlayMode 100/100"
+```
+
+sonucunu:
+
+```text
+"oyun tamamen çalışıyor"
+```
+
+şeklinde yorumlama.
+
+---
+
+# 68. TEST KAYIT FORMATI
+
+Her test:
+
+```text
+TEST NAME:
+PRECONDITION:
+ACTION:
+EXPECTED:
+ACTUAL:
+RESULT:
+```
+
+şeklinde raporlanmalı.
+
+---
+
+# 69. TAM MANUEL TEST LİSTESİ
+
+Minimum:
+
+```text
+01 Game start
+02 Player spawn
+03 Player movement
+04 Mouse look
+05 Customer interaction
+06 Parcel pickup
+07 Parcel carry
+08 Parcel drop
+09 Parcel pickup again
+10 Packing table interaction
+11 Packaging
+12 Packed parcel pickup
+13 Bike interaction
+14 Bike enter
+15 Bike camera
+16 Bike acceleration
+17 Bike steering
+18 Bike brake
+19 Bike reverse
+20 Bike exit
+21 Vehicle stays independent
+22 Cargo loading
+23 Cargo visible in vehicle
+24 Cargo unload
+25 Correct address
+26 Wrong address
+27 Door knock
+28 NPC home
+29 NPC not home
+30 NPC code
+31 Correct code
+32 Wrong code
+33 Delivery complete
+34 Money reward
+35 XP reward
+36 Duplicate delivery rejection
+37 Capacity weight
+38 Capacity volume
+39 Minimap
+40 Target distance
+41 HUD accuracy
+42 Day clock
+43 Day summary
+44 Autosave
+45 Reload save
+46 Full scenario from beginning to end
+```
+
+---
+
+# 70. TAM SENARYO TESTİ
+
+Ayrıca ayrı bir test:
+
+```text
+FULL DEMO PLAYTHROUGH
+```
+
+yap.
+
+Hiçbir reset yapmadan:
+
+```text
+Start
+→
+Cargo
+→
+Vehicle
+→
+Drive
+→
+Delivery
+→
+Reward
+→
+Next delivery
+→
+Day end
+→
+Save
+```
+
+tamamlanmalı.
+
+---
+
+# 71. BUG SINIFLANDIRMASI
+
+## P0
+
+Oyunu oynanamaz yapan.
+
+Örnek:
+
+* hareket yok
+* kargo alınamıyor
+* araç sürülmüyor
+* teslimat yapılamıyor
+* oyun açılmıyor
+* save çalışmıyor
+
+P0 varsa:
+
+**DEMO HAZIR DEĞİL.**
+
+## P1
+
+Temel oynanışı ciddi bozan.
+
+Örnek:
+
+* yanlış collider
+* araç fizik problemi
+* yanlış kargo
+* kamera bozuk
+* NPC akışı bozuk
+
+P1 varsa:
+
+**DEMO HAZIR DEĞİL.**
+
+## P2
+
+Küçük visual/UX problemleri.
+
+P2 varsa ancak temel akış tamamen çalışıyorsa demo değerlendirilebilir.
+
+---
+
+# 72. BUG DÜZELTME KURALI
+
+Bir bug bulduğunda:
+
+```text
+Bug
+↓
+Root cause
+↓
+Fix
+↓
+Regression test
+↓
+Manual retest
+```
+
+yap.
+
+Sadece semptomu gizleme.
+
+Örnek:
+
+```text
+Bisiklet hareket etmiyor
+```
+
+için:
+
+```text
+speed = 6.8
+```
+
+gibi rastgele değer değiştirmek yeterli değildir.
+
+Neden hareket etmediğini bul.
+
+---
+
+# 73. REGRESSION
+
+Bir sistemi değiştirirken daha önce çalışan diğer sistemlerin bozulmadığını kontrol et.
+
+Özellikle:
+
+```text
+Cargo
+↔
+Packaging
+↔
+Vehicle
+↔
+Delivery
+↔
+Economy
+↔
+Save
+```
+
+zinciri korunmalı.
+
+---
+
+# 74. SAVE REGRESSION
+
+Save sonrasında:
+
+* para
+* XP
+* delivered state
+* current day
+* parcel status
+
+kaybolmamalı.
+
+---
+
+# 75. DEBUG TEMİZLİĞİ
+
+Demo oynanışını tamamlamak için kullanılan geçici:
+
+* test input
+* debug spawn
+* measurement tool
+* temporary object
+* test-only shortcut
+
+oyuncu gameplay'ine zarar vermemeli.
+
+Production gameplay ile test mekanizmasını ayır.
+
+Gereksiz geçici kod varsa kaldır veya Editor/Test assembly'sinde tut.
+
+---
+
+# 76. GELİŞTİRME SINIRI
+
+Bu görev sırasında yeni feature eklemeye çalışma.
+
+Demo 1'de olmayan:
+
+* trafik
+* hava
+* multiplayer
+* gelişmiş NPC AI
+* çalışanlar
+* büyük şirket
+* online satış
+* warehouse automation
+* derin görev zinciri
+* gelişmiş araç upgrade
+* yakıt/arıza derinliği
+
+şimdilik yapılmayacak.
+
+---
+
+# 77. AMA BUG İÇİN REFACTOR SERBEST
+
+Bir sistem mevcut mimaride kötü tasarlanmışsa ve oynanabilirliği bozuyorsa:
+
+**gereken küçük/orta refactor yapılabilir.**
+
+Örneğin:
+
+* `VanCargoPoint` adının yanlış olması
+* `GameCompositionRoot` aşırı büyümüşse bölmek
+* `AddressDoor` sorumluluğunu ayırmak
+* interface düzeltmek
+* camera ownership düzeltmek
+
+oynanabilirliği artırmak için yapılabilir.
+
+Ama:
+
+> Refactor sadece refactor için yapılmayacak.
+
+---
+
+# 78. ASSET KURALI
+
+Mevcut assetleri önce düzelt.
+
+Yeni asset gerekiyorsa:
+
+1. neden mevcut asset kullanılamıyor?
+2. ne eksik?
+3. yeni asset gerçekten gerekli mi?
+
+raporla.
+
+Kendi başına onlarca yeni asset paketi ekleme.
+
+---
+
+# 79. GRAFİK KALİTESİ
+
+Demo 1 için fotogerçekçi grafik gerekmiyor.
+
+Öncelik:
+
+```text
+Okunabilir
++
+temiz
++
+tutarlı
++
+oynanabilir
+```
+
+Primitive kullanılabilir.
+
+Ancak:
+
+* teker modelden kopuk
+* kamera modelin içine giriyor
+* kutular havada
+* NPC zemine gömülmüş
+* araçın parçaları birbirinden uzak
+
+gibi hatalar kabul edilmez.
+
+---
+
+# 80. SAHNE BAŞLANGICI
+
+Play'e bastığımda:
+
+```text
+Player
++
+Bike
++
+Depot
++
+Customers
++
+Cargo
++
+World
+```
+
+hazır olmalı.
+
+Ben sahneye girince hiçbir şeyi elle hazırlamamalıyım.
+
+---
+
+# 81. DEMO BAŞLANGIÇ DURUMU
+
+Başlangıç:
+
+```text
+Day = 1
+Time = 08:00
+Player = OnFoot
+Vehicle = CargoBike
+Money = configured starting value
+XP = configured starting value
+Cargo = daily generated
+```
+
+olmalı.
+
+Exact starting money değeri mevcut GameConfig/brief'teki değerle uyumlu tutulmalı; kendi başına değiştirme.
+
+---
+
+# 82. OYUNCUYA ÖĞRETME
+
+İlk kez oynayan oyuncu:
+
+```text
+WASD
+Mouse
+E
+F
+G
+Space
+Shift
+TAB
+```
+
+kontrollerini bilmiyor olabilir.
+
+İlk girişte küçük tutorial tooltipleri gösterilebilir.
+
+Örnek:
+
+```text
+WASD — Yürü
+Mouse — Bak
+E — Etkileşim
+F — Araca bin
+G — Kutuyu bırak
+```
+
+Ancak ekranı kaplayan tutorial yapılmayacak.
+
+---
+
+# 83. TUTORIAL AKIŞI
+
+İlk birkaç dakika doğal öğretici olacak.
+
+Örneğin:
+
+```text
+Oyuncu depoda
+↓
+müşteri yanında
+↓
+"E ile konuş"
+↓
+kargo
+↓
+"E ile kargoyu al"
+↓
+"G ile bırak"
+↓
+"F ile araca bin"
+```
+
+Böylece oyun kendi kendini anlatır.
+
+---
+
+# 84. SES
+
+Mevcut sistem varsa kullanılabilir.
+
+Özellikle:
+
+* kapı çalma
+* zil
+* doğru kod
+* yanlış kod
+* başarılı teslimat
+
+gibi gameplay feedback'leri duyulabilir.
+
+Ancak bu görev için büyük audio pipeline kurma.
+
+---
+
+# 85. FEEDBACK
+
+Her önemli gameplay olayına net feedback ver.
+
+### Kargo alındı
+
+```text
+Kargo alındı
+```
+
+### Araç dolu
+
+```text
+Kapasite dolu
+```
+
+### Yanlış kod
+
+```text
+Teslim kodu yanlış
+```
+
+### Başarılı teslim
+
+```text
+Teslimat tamamlandı
++₺XXX
++XX XP
+```
+
+Oyuncu ne olduğunu anlamalı.
+
+---
+
+# 86. HAFİF BUGLAR DA KONTROL EDİLECEK
+
+Sadece crash değil:
+
+* yanlış text
+* yanlış sayı
+* yanlış hedef
+* yanlış kargo
+* yanlış kamera
+* yanlış spawn
+* yanlış state
+* UI stuck
+* input stuck
+* duplicate event
+* duplicate payment
+
+kontrol edilecek.
+
+---
+
+# 87. OYUNCU HİSSİ
+
+Demo 1'de hedef his:
+
+```text
+Kargoyu görüyorum
+↓
+elimle alıyorum
+↓
+taşıyorum
+↓
+araca koyuyorum
+↓
+aracı kullanıyorum
+↓
+adrese gidiyorum
+↓
+kargoyu indiriyorum
+↓
+kapıyı çalıyorum
+↓
+müşteriyle teslimat yapıyorum
+↓
+para kazanıyorum
+```
+
+Bu hissi bozan otomatik teleport/soyutlama gerekiyorsa yeniden düzenle.
+
+---
+
+# 88. OTOLOADING YASAĞI
+
+Aşağıdaki işlemler oyuncunun gözünden gizli teleport ile yapılmamalı:
+
+```text
+Kutu → inventory
+Kutu → araç
+Kutu → teslim
+```
+
+Her geçişte oyuncu ne olduğunu görmeli.
+
+---
+
+# 89. KARGO YÖNETİM FELSEFESİ
+
+Kargo:
+
+**bir sayı değil, fiziksel gameplay objesi.**
+
+Oyuncu:
+
+```text
+box 1
+box 2
+box 3
+```
+
+diye gerçekten ayırt edebilmeli.
+
+Hover ile:
+
+```text
+Parcel ID
+Receiver
+Address
+Weight
+Volume
+Status
+```
+
+görülebilir.
+
+---
+
+# 90. OYUNCU KARARLARI
+
+Demo 1 küçük olsa da oyuncu birkaç karar verebilmeli:
+
+```text
+Hangi kargoyu alayım?
+Nereye koyayım?
+Aracı ne kadar doldurayım?
+Hangi adrese önce gideyim?
+Hızlı mı gideyim?
+Kapıda doğru kodu girdim mi?
+```
+
+Ancak karmaşık routing sistemi gerekmiyor.
+
+---
+
+# 91. DEMO 1 TASARIM İLKESİ
+
+Her şeyden önce:
+
+> **Çalışan oyun > çok özellik.**
+
+Bu görev tamamlanmadan:
+
+**"Şimdi hikâyeyi ekleyelim."**
+
+gibi yeni feature geliştirme.
+
+Önce bu akış kusursuz hale gelmeli.
+
+---
+
+# 92. BAŞARI KRİTERİ
+
+Aşağıdakilerin hepsi:
+
+```text
+[ ] Oyun açılıyor
+[ ] Player spawn düzgün
+[ ] Player movement düzgün
+[ ] Mouse düzgün
+[ ] Interaction düzgün
+[ ] Box pickup düzgün
+[ ] Box carry düzgün
+[ ] Box drop düzgün
+[ ] Packaging düzgün
+[ ] Vehicle enter düzgün
+[ ] Vehicle physics düzgün
+[ ] Vehicle camera düzgün
+[ ] Vehicle exit düzgün
+[ ] Cargo loading düzgün
+[ ] Cargo unloading düzgün
+[ ] Navigation düzgün
+[ ] Door düzgün
+[ ] NPC düzgün
+[ ] Code düzgün
+[ ] Wrong code düzgün
+[ ] Not home düzgün
+[ ] Wrong cargo düzgün
+[ ] Delivery düzgün
+[ ] Economy düzgün
+[ ] XP düzgün
+[ ] HUD düzgün
+[ ] Minimap düzgün
+[ ] Day cycle düzgün
+[ ] Day summary düzgün
+[ ] Save/load düzgün
+```
+
+olmalı.
+
+---
+
+# 93. "TAMAM" DEMENİN ŞARTI
+
+Aşağıdaki cümleye:
+
+> "Ben şimdi Unity'de Play'e basıp bütün Demo 1'i debug müdahalesi olmadan oynayabiliyorum."
+
+**YES**
+
+diyemiyorsan görev tamam değildir.
+
+---
+
+# 94. RELEASE CANDIDATE TESTİ
+
+Son aşamada yeni bir temiz test yap.
+
+### Test:
+
+```text
+1. Unity aç
+2. Project aç
+3. Scene aç
+4. Play
+5. Oyuncu başlar
+6. İlk kargoyu al
+7. Kargoyu bırak
+8. Geri al
+9. Bisiklete yükle
+10. Bin
+11. Sür
+12. Adrese git
+13. İn
+14. Kargoyu al
+15. Kapıyı çal
+16. NPC
+17. Kod
+18. Teslim
+19. Para
+20. XP
+21. İkinci teslim
+22. Gün sonu
+23. Summary
+24. Save
+25. Play'i kapat
+26. Tekrar aç
+27. Save'i yükle
+28. State'i kontrol et
+```
+
+Bunun tamamı çalışmalı.
+
+---
+
+# 95. TEMİZ KURULUM TESTİ
+
+Mevcut build/scene kurulum araçları kullanılıyorsa:
+
+```text
+BuildEverything
+```
+
+ve benzeri kurulum adımlarının:
+
+* exception vermediğini
+* duplicate object oluşturmadığını
+* eski sistemi bozmadan sahneyi hazırladığını
+
+kontrol et.
+
+---
+
+# 96. CONSOLE
+
+Demo testi sırasında:
+
+```text
+Errors = 0
+Exceptions = 0
+```
+
+hedeflenmeli.
+
+Gereksiz spam warning de temizlenmeli.
+
+---
+
+# 97. PERFORMANCE GATE
+
+En azından gerçek Play Mode'da:
+
+* FPS gözlemi
+* GC spike kontrolü
+* fizik davranışı
+* gereksiz object creation
+
+kontrol edilmeli.
+
+Hedef düşük/orta bilgisayar.
+
+---
+
+# 98. KAPSAM KARARI
+
+Bu görev:
+
+**Demo 1 tamamlanma görevi.**
+
+Başka bir feature görevi değildir.
+
+Görev sırasında bir şey eksik olduğunda:
+
+```text
+Önce:
+"Bu şey mevcut oynanışın çalışması için gerekli mi?"
+```
+
+sor.
+
+Evetse düzelt.
+
+Hayırsa ertele ve raporla.
+
+---
+
+# 99. EN ÖNEMLİ TALİMAT
+
+Otomatik testlerin sana:
+
+```text
+PASS
+```
+
+demesi seni yanıltmasın.
+
+Gerçek oyuncu için:
+
+```text
+kutu almak
++
+taşımak
++
+bırakmak
++
+araca yüklemek
++
+sürmek
++
+inmek
++
+kargoyu almak
++
+kapıyı çalmak
++
+kod
++
+teslim
+```
+
+çalışmıyorsa:
+
+**OYUN ÇALIŞMIYOR.**
+
+---
+
+# 100. DEVELOPMENT REPORT
+
+Görev bittiğinde tam olarak aşağıdaki raporu üret.
+
+## 1. TASK SUMMARY
+
+Görevin amacı ve sonuç.
+
+## 2. COMPLETED SYSTEMS
+
+Tamamlanan sistemlerin listesi.
+
+## 3. CREATED FILES
+
+Yeni dosyalar.
+
+## 4. MODIFIED FILES
+
+Değişen dosyalar.
+
+## 5. UNITY SCENE CHANGES
+
+Sahne üzerinde yapılan tüm değişiklikler.
+
+## 6. ARCHITECTURE CHANGES
+
+Mimari değişiklikleri.
+
+## 7. AUTOMATED TEST RESULTS
+
+```text
+Compile:
+EditMode:
+PlayMode:
+```
+
+## 8. MANUAL TEST RESULTS
+
+46 maddelik listenin tamamını:
+
+```text
+PASS
+FAIL
+BLOCKED
+NOT EXECUTED
+```
+
+olarak yaz.
+
+## 9. FULL DEMO PLAYTHROUGH
+
+Tam senaryonun:
+
+```text
+Start
+→ Cargo
+→ Packaging
+→ Loading
+→ Driving
+→ Delivery
+→ Reward
+→ Day End
+→ Save
+```
+
+sonucunu yaz.
+
+## 10. BUGS FOUND
+
+Bulunan bütün önemli buglar.
+
+## 11. BUGS FIXED
+
+Her bug:
+
+```text
+Bug
+Root cause
+Fix
+Regression test
+```
+
+şeklinde.
+
+## 12. KNOWN ISSUES
+
+Kalanlar.
+
+## 13. PERFORMANCE
+
+Gerçek gözlem/ölçüm.
+
+## 14. FINAL VERDICT
+
+ŞU FORMAT ZORUNLU:
+
+```text
+DEMO 1 FULLY PLAYABLE: YES / NO
+```
+
+Eğer NO:
+
+```text
+P0 BLOCKERS:
+1.
+2.
+
+P1 BLOCKERS:
+1.
+2.
+```
+
+Eğer YES:
+
+```text
+FULL SCENARIO PLAYABLE WITHOUT DEBUG INTERVENTION: YES
+MANUAL PLAYTHROUGH: PASS
+SAVE/LOAD: PASS
+KNOWN P0 BUGS: 0
+KNOWN P1 BUGS: 0
+```
+
+---
+
+# 101. SON PM KURALI
+
+Bu rapordan sonra kendi başına yeni görev başlatma.
+
+Örneğin:
+
+```text
+"Sonraki aşamada hikâyeyi ekledim."
+```
+
+yapma.
+
+Sadece:
+
+> **Bu Demo 1 gerçekten oynanabilir mi?**
+
+sorusunun cevabını ver.
+
+---
+
+# 102. SON HEDEF
+
+Bu görevin sonunda elimizde:
+
+**birbirinden kopuk sistemler değil,**
+
+şu oynanabilir ürün olmalı:
+
+```text
+┌───────────────────────────────────────────┐
+│           KARGO SİMÜLATÖRÜ DEMO 1         │
+├───────────────────────────────────────────┤
+│                                           │
+│  Yürü                                      │
+│    ↓                                      │
+│  Müşteriden kargo al                      │
+│    ↓                                      │
+│  Kargoyu taşı                             │
+│    ↓                                      │
+│  Bırak / tekrar al                        │
+│    ↓                                      │
+│  Paketle                                  │
+│    ↓                                      │
+│  Bisiklete yükle                          │
+│    ↓                                      │
+│  Bisiklete bin                            │
+│    ↓                                      │
+│  Sür                                       │
+│    ↓                                      │
+│  Adrese git                               │
+│    ↓                                      │
+│  İn                                        │
+│    ↓                                      │
+│  Kargoyu al                               │
+│    ↓                                      │
+│  Kapıyı çal                               │
+│    ↓                                      │
+│  NPC                                       │
+│    ↓                                      │
+│  4 haneli kod                             │
+│    ↓                                      │
+│  Teslim                                   │
+│    ↓                                      │
+│  Para + XP                                │
+│    ↓                                      │
+│  Yeni teslimat                            │
+│    ↓                                      │
+│  Gün sonu                                 │
+│    ↓                                      │
+│  Save                                     │
+│                                           │
+└───────────────────────────────────────────┘
+```
+
+**Bu zincirin her halkası gerçek oyuncu tarafından kullanılabilir, anlaşılır ve stabil olacak.**
+
+Öncelik sırası:
+
+```text
+PLAYABILITY
+↓
+CORRECTNESS
+↓
+STABILITY
+↓
+UX
+↓
+VISUAL POLISH
+↓
+PERFORMANCE
+```
+
+Yeni özellik eklemekten önce mevcut oyunun gerçekten oynanabildiğini kanıtla.
