@@ -78,6 +78,18 @@ namespace KargoSim.Player
         private const string ClipIdle = "idle";
         private const string ClipWalk = "walk";
         private const string ClipSprint = "sprint";
+
+        /// <summary>
+        /// Kullanilacak kosu klipinin GERCEK adı.
+        ///
+        /// ONCEKI HATA: `Courier.controller` icinde "sprint" DILE
+        /// YOKTUR (5 klip: idle, walk, pick-up, holding-both,
+        /// interact-right). Kod yine de "sprint" istiyordu;
+        /// `CrossFade` olmayan klip adini sessizce yutuyor ve oyuncu
+        /// kosarken animasyonu DEGISMIYOR. Simdi varlik kontrolu
+        /// yapilir, yoksa yuruyus klipine dusulur.
+        /// </summary>
+        private string _sprintClip;
         private const string ClipPickUp = "pick-up";
         private const string ClipCarryIdle = "holding-both";
         private const string ClipDrop = "interact-right";
@@ -296,7 +308,7 @@ namespace KargoSim.Player
             string clip;
             if (IsCarrying) clip = _isMoving ? ClipWalk : ClipCarryIdle;
             else if (!_isMoving) clip = ClipIdle;
-            else clip = _isRunning ? ClipSprint : ClipWalk;
+            else clip = _isRunning ? SprintClip() : ClipWalk;
 
             if (clip != _lastClip)
             {
@@ -306,6 +318,40 @@ namespace KargoSim.Player
         }
 
         private string _lastClip = "";
+
+        /// <summary>
+        /// "sprint" klipini gercekten var mi diye bakar.
+        /// Varsa sprint, yoksa yuruyus. AnimatorController'da klip
+        /// adlarini `runtimeAnimatorController.animationClips` ile
+        /// okuyabiliyoruz.
+        /// </summary>
+        private string SprintClip()
+        {
+            if (!string.IsNullOrEmpty(_sprintClip)) return _sprintClip;
+
+            _sprintClip = ClipWalk;      // guvenli varsayilan
+
+            var anim = _animatorOverride != null ? _animatorOverride
+                                                 : GetComponentInChildren<Animator>();
+            RuntimeAnimatorController ctrl = anim != null
+                ? anim.runtimeAnimatorController : null;
+            if (ctrl == null) return _sprintClip;
+
+            AnimationClip[] clips = ctrl.animationClips;
+            for (int i = 0; i < clips.Length; i++)
+            {
+                if (clips[i] == null) continue;
+                if (clips[i].name == ClipSprint) { _sprintClip = ClipSprint; break; }
+            }
+
+            if (_sprintClip != ClipSprint)
+                Debug.LogWarning("[Courier] AnimatorController'da 'sprint' klipi "
+                    + "yok; kosu 'walk' klipini kullanacak. Oyuncu kosarken "
+                    + "animasyon degismiyordu (gorev kalitesi).");
+            return _sprintClip;
+        }
+
+        private Animator _animatorOverride;
         private string _actionClip = "";
         private float _actionTimer;
 

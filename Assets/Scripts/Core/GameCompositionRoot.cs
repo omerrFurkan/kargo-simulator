@@ -388,6 +388,16 @@ namespace KargoSim.Core
             if (_inventory != null && uiManager != null)
                 uiManager.SetInventoryView(_inventory);
 
+            // NESNE OZELLIK PENCERESI (gorev #31).
+            //
+            // OLCUM: Game.unity icinde `tooltipView` alanina 0 atif
+            // vardi. Yani panel HIC kurulmadigi icin oyuncu odaktaki
+            // kutunun ozelliklerini goremiyordu; gorev yazida
+            // tamamlanmis sayiliyordu.
+            _tooltip = UI.TooltipBuilder.Build(FindFirstObjectByType<Canvas>());
+            if (_tooltip != null && uiManager != null)
+                uiManager.SetTooltipView(_tooltip);
+
             // ASAMA 14: her aracin kendi kargo noktasi ve kendi
             // surucu kamerasi var.
             //
@@ -820,6 +830,7 @@ namespace KargoSim.Core
         /// zaman daha guvenilir bir kaynak oldu.
         /// </summary>
         private UI.CargoInventoryView _inventory;
+        private UI.ParcelTooltipView _tooltip;
 
         private void SpawnShopCustomers(Player.CourierController courier)
         {

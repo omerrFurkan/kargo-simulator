@@ -415,3 +415,53 @@ geri aldim**: Biciklet on tekeri aks sapmasi olculdu **40 derece**
 (yatay olmali). Bu gercek bir hata mi yoksa durus/donus egimi mi
 ayrimi yapilamadi. Biciklet kadro/teker sikayeti ancak onun uzerine
 kapatilabilir.
+---
+
+## EK: ASAMA 35 - EKSIKLER LISTESI VE KAPATILMASI
+
+Oyuncu: *"eksikleri listele ve kapat"*. Once OLCULDI, sonra duzeltildi.
+
+### Kapatanlar
+
+| # | Eksik | Nasil bulundu | Durum |
+|---|---|---|---|
+| 1 | **Adres 9 ve 12'nin binasi YOKTI** | 18 bina var, Bina_9/Bina_12 listede degil. CitySetupTool.TryPlaceBuilding 18 acı x 6 mesafe dener, hepsi cakisirsa binayi **SESSIZCE ATAR** | Kapatildi |
+| 2 | **Adres kapilarinda NPC FIGURU YOKTU** | NPCSystem.cs icinde hic GameObject uretilmiyor; kapida sadece METIN cikiyor | Kapatildi (14 sakin) |
+| 3 | **Kosu animasyonu YOKTU** | Courier.controllerde 5 klip var, sprint **yok**; CrossFade olmayan klip adini sessizce yutuyor, oyuncu kosarken animasyon degismiyordu | Kapatildi (varlik kontrolu + walk dusus) |
+| 4 | **Ozellik penceresi SAHNEDE HIC YOKTU** | Game.unityde 	ooltipView alanina **0 atif**. Gorev #31 yazida tamamlanmis sayiliyordu, hicbir sey calismiyordu | Kapatildi (TooltipBuilder) |
+| 5 | **Lambalar ISIK YAYMIYORDU** | CitySetupToolda AddComponent<Light> **yok**; sadece parlak MALZEME vardi | Kapatildi (8 nokta isik) |
+| 6 | Agaclar "lolipop" | tek Sphere | Kapatildi (3 kademeli tacl1) |
+| 7 | Dukkan catisi duz kutu | — | Kapatildi (egimli + oluk + baca) |
+| 8 | Ufukta camurlu gri bant | zemin 200x200 bitiyor, sis 210 m'ydi | Kapatildi (420x420 zemin, sis 150 m) |
+
+### Bu turda bulunan 5 YENI HATA
+
+1. **Agaclar 5 m'ye sisti.** Her agac IKI nesne: Agac_NN_Govde (kutu) ve
+   Agac_NN_Tac (kure). Kod ikisine de detay ekliyordu. Eski tacl
+   kapatilip sadece govde isleniyor.
+2. **Dikkandan gecen dev bir sivri kule.** Catili kumesine 1/s.y olcegi
+   verilmisti; s.y = 0.3 (cati kalinligi) oldugu ici 1.8 m'lik baca
+   6 m oluyordu. Dukkan catisi kumesinde olcek birim yapildi.
+3. **Egrim mesh'inde ince koyu diken.** idgeAlongZ dalinda dortgenler
+   yanlis noktalara birlestirilmis; dort noktasi da ayni duzlemde olan
+   ucgenler cikiyordu. Gercek yuzlerle yeniden yazildi; mesh iki yonlu
+   (cull off) ciziliyor.
+4. **Eksik ev eklenmedi.** AddressDoor bileseni Door_4 uzerinde degil,
+   alt cocuk Interact uzerindeydi; sadece kendi adina bakan kod
+   "Interact" goruyor ve hicbir adresi eslesmiyordu. Artik yukari dogru
+   da bakiliyor. **Boylece olsaydi mesaj hic cikmazdi ve eksik ev fark
+   edilirdi - kod calistigi icin degil, sessizce ise yaramadigi icin.**
+5. VerticalOverflow -> UnityEngine.VerticalWrapMode derleme hatasi.
+
+### Dogrulama
+
+- EditMode **307/307**
+- PlayMode **103/103**
+- Kabul akisi: para **250 -> 558**, elde kalan **0**
+
+### ACIK KALAN
+
+**Bisiklet on tekeri aks sapmasi: 40 derece** (yatay olmali). Bu olculdu
+ama gercek hata mi yoksa durus/donus egimi mi oldugu ayirt edilemedi;
+o yuzden bos bir test birakmak yerine hic dosya eklemedim. Bisiklet
+kadro/teker gorsel sikayeti bu kapanmadan kapanmis sayilmaz.

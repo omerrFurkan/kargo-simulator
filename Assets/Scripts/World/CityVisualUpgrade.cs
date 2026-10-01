@@ -240,6 +240,10 @@ namespace KargoSim.World
             HumanizeCustomers();
             TuneLighting();
 
+            // 2. KATMAN: 1. turda kalan eksikler (agac, dukkân catisi,
+            // EKSIK adres 9 binasi, kapi sakinleri, lamba isiklari, ufuk).
+            CityDetailPass.Run();
+
             Debug.Log("[CityVisualUpgrade] " + ObjectsAdded
                       + " gorsel parca eklendi (dukkan/ev/sokak/zemin/NPC).");
         }
@@ -390,10 +394,10 @@ namespace KargoSim.World
                 v.Add(new Vector3(0f, rise, -hl));
                 v.Add(new Vector3(0f, rise,  hl));
 
-                Quad(t, 0, 4, 5, 1);   // -Z egme
-                Quad(t, 3, 2, 5, 4);   // +Z egme
-                Tri(t, 0, 3, 4);       // -X alinlik
-                Tri(t, 2, 1, 5);       // +X alinlik
+                Quad(t, 0, 3, 5, 4);   // -X egme
+                Quad(t, 1, 2, 5, 4);   // +X egme
+                Tri(t, 0, 1, 4);       // -Z alinlik
+                Tri(t, 2, 3, 5);       // +Z alinlik
             }
             else
             {
@@ -404,11 +408,15 @@ namespace KargoSim.World
                 v.Add(new Vector3(-hl, rise, 0f));
                 v.Add(new Vector3( hl, rise, 0f));
 
-                Quad(t, 0, 1, 4, 5);   // -Z egme
-                Quad(t, 3, 2, 5, 4);   // +Z egme
-                Tri(t, 1, 2, 4);       // +Z alinlik
-                Tri(t, 3, 0, 5);       // -Z alinlik
+                Quad(t, 0, 3, 5, 4);   // -Z egme
+                Quad(t, 1, 2, 5, 4);   // +Z egme
+                Tri(t, 0, 1, 4);       // -X alinlik
+                Tri(t, 3, 2, 5);       // +X alinlik
             }
+
+            int tn = t.Count;
+            for (int i = 0; i < tn; i += 3)
+            { t.Add(t[i + 2]); t.Add(t[i + 1]); t.Add(t[i]); }
 
             m.SetVertices(v);
             m.SetTriangles(t, 0);

@@ -54,6 +54,10 @@ namespace KargoSim.UI
 
         public void SetInventoryView(CargoInventoryView view) => inventoryView = view;
 
+        /// <summary>Nesne ozellik penceresi (gorev #31). Sahne YAML'inde
+        /// bu alan bos birakildigi icin pencere HIC gorunmuyordu.</summary>
+        public void SetTooltipView(ParcelTooltipView view) => tooltipView = view;
+
         [Tooltip("Teslimat kodu giris paneli (Asama 13).")]
         [SerializeField] private CodeEntryView codeEntry;
 
