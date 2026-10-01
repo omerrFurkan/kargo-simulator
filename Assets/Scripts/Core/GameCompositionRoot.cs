@@ -933,9 +933,22 @@ namespace KargoSim.Core
                                      QueryTriggerInteraction.Ignore))
                     pos.y = hit.point.y;
 
-                go.transform.position = pos;
-                go.transform.rotation = Quaternion.LookRotation(
-                    (origin - pos).normalized + Vector3.up, Vector3.up);
+go.transform.position = pos;
+
+                  // MUSTERI KURYEYE BAKsin.
+                  //
+                  // ONCEKI HATA: `(origin - pos).normalized + Vector3.up`
+                  // yaziliyordu. `origin - pos` YATAY bir vektordur;
+                  // Uzerine (0,1,0) eklenince ileri yonu 45 derece
+                  // YUKARI kalkar ve `LookRotation` tum figuru 45
+                  // derece egik durdurur. Oyuncu ekranda "yamuk
+                  // duran NPC'ler" diye sikayet ediyordu - bu satirin
+                  // sonucu.
+                  Vector3 look = origin - pos;
+                  look.y = 0f;
+                  if (look.sqrMagnitude > 0.0001f)
+                      go.transform.rotation = Quaternion.LookRotation(
+                          look.normalized, Vector3.up);
 
                 // Gorunur figur: kapsul govde + ETKILESIM COLLIDER'I.
                 //

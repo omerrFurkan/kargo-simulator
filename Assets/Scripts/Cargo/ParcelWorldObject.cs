@@ -32,6 +32,10 @@ namespace KargoSim.Cargo
         [SerializeField] private float angularDrag = 6f;
         [SerializeField] private float maxSpeedCap = 6f;
 
+        [Tooltip("Kutu bir digerinin icinde dogarsa disari itme hizi. "
+                 + "Cok yuksekse kutu 'firlatilir'.")]
+        [SerializeField] private float depenetrationCap = 0.6f;
+
         private Rigidbody _body;
         private BoxCollider _box;
         private Collider _playerCollider;
@@ -110,7 +114,7 @@ namespace KargoSim.Cargo
                     _body.drag = drag;
                     _body.angularDrag = angularDrag;
                     _body.interpolation = RigidbodyInterpolation.Interpolate;
-                    _body.maxDepenetrationVelocity = maxSpeedCap;
+                    _body.maxDepenetrationVelocity = depenetrationCap;
                     break;
             }
         }

@@ -63,14 +63,35 @@ namespace KargoSim.EditorTools
                 n.transform.rotation = Quaternion.Euler(0f, 200f + i * 25f, 0f);
             }
 
+
+            // Birlakilan kutuyu goster: kayma/savurma olcusu
+            var courier = UnityEngine.Object.FindFirstObjectByType<KargoSim.Player.CourierController>();
+            var carry = courier != null ? courier.Carry : null;
+            var root = UnityEngine.Object.FindFirstObjectByType<KargoSim.Core.GameCompositionRoot>();
+            var depot = root != null ? root.Cargo.Manifest.Available : null;
+            if (carry != null && depot != null && depot.Count > 0)
+            {
+                Vector3 at = courier.transform.position
+                           + courier.transform.forward * 1.4f;
+                if (Physics.Raycast(at + Vector3.up * 3f, Vector3.down,
+                        out RaycastHit hit, 12f, ~0, QueryTriggerInteraction.Ignore))
+                    at = hit.point + Vector3.up * 0.25f;
+
+                var box = KargoSim.Cargo.CargoWorldRegistry.Instance.GetOrCreate(depot[0], at);
+                carry.TryPickup(box, courier.GetComponent<Collider>());
+                carry.TryDrop();
+            }
+
             var shots = new[]
+
             {
                 new Shot("01_depo_genel", new Vector3(14f, 9f, 20f), new Vector3(0f, 1.5f, -4f), 55f),
                 new Shot("02_dukan_yakin", new Vector3(0f, 3.2f, 8f), new Vector3(0f, 1.6f, -7f), 50f),
                 new Shot("03_sokak", new Vector3(0f, 4.5f, 30f), new Vector3(0f, 1.0f, 55f), 55f),
                 new Shot("04_evler", new Vector3(40f, 8f, 30f), new Vector3(55f, 2f, 0f), 55f),
                 new Shot("05_kurye_yakin", new Vector3(3.6f + 3f, 1.9f, 1.2f + 3f), new Vector3(3.6f, 1.0f, 1.2f), 45f),
-                new Shot("06_npc_uzak", new Vector3(3.9f, 1.5f, 6.2f), new Vector3(3.9f, 1.0f, 2.0f), 40f),
+                new Shot("06_musteri_yakin", new Vector3(7.0f, 1.6f, -3.0f), new Vector3(4.2f, 1.0f, -7.0f), 42f),
+                new Shot("08_birakilan_kutu", new Vector3(6.0f, 2.2f, 2.0f), new Vector3(6.0f, 0.2f, -4.0f), 45f),
                 new Shot("07_npc_yakin", new Vector3(3.9f, 1.35f, 3.6f), new Vector3(3.9f, 1.05f, 2.0f), 45f),
             };
 
