@@ -329,6 +329,10 @@ namespace KargoSim.Core
 
             PlaceCourierNearVehicle(courier);
             AlignCourierModelToFeet(courier);
+            // GORSEL KATMAN (dukkan/ev/sokak/NPC). Mevcut nesnelere
+            // yalnizca COCUK EKLER; hicbir seyi silmez, tasirmaz.
+            if (GetComponent<World.CityVisualUpgrade>() == null)
+                gameObject.AddComponent<World.CityVisualUpgrade>();
 
             // ASAMA 17: karakter araclari ITER.
             //
