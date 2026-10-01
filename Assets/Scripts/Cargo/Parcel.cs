@@ -1,64 +1,11 @@
 using System;
 
+using UnityEngine;
+
 namespace KargoSim.Cargo
 {
     /// <summary>
     /// Kargonun icinde bulundugu yer.
-    /// </summary>
-    public enum ParcelState
-    {
-        /// <summary>Depoda, teslim edilmedi. Oyuncu inceleyip yukleyebilir.</summary>
-        WaitingInDepot = 0,
-
-        /// <summary>Araca yuklendi. Teslimat bekliyor (AÅŸama 4).</summary>
-        LoadedOnVehicle = 1,
-
-        /// <summary>Teslim edildi. Artik listeden cikar (AÅŸama 4).</summary>
-        Delivered = 2,
-
-        /// <summary>
-        /// KALICI olarak oyundan cikarildi (gun sonu basarisiz sayimi).
-        /// Depoya geri donmez: ne yuklenebilir ne de teslim edilebilir.
-        /// </summary>
-        Discarded = 3,
-
-        // --- Asama 12: Paketleme ---
-        //
-        // DIKKAT: asagidaki degerler SIRA SONUNA eklendi ve bir daha
-        // degistirilmeyecek. Save dosyalari durumu duz sayi olarak yaziyor
-        // (SaveSystem: state = (int)parcel.State). Ortaya bir deger eklense
-        // yeni kod eski kaydi "bilinmeyen" diye reddeder ve oyuncunun ilerlemesi
-        // kaybolurdu.
-
-        /// <summary>
-        /// Paketleme masasi basinda, arada bir adimda.
-        /// </summary>
-        Packaging = 4,
-
-        /// <summary>
-        /// Paketlendi ve teslimata hazir. Araca yuklenebilir.
-        /// </summary>
-        Ready = 5,
-
-        /// <summary>
-        /// PAKETLENMIS, ARACTAYKEN KURYENIN ELINDE (asama 33).
-        ///
-        /// Once bu durum yoktu: aractan alinan kutu `_loaded` listesinde
-        /// kalirdi, boylece hem kasada hem elde sayiliyordu.
-        ///
-        /// Sona eklendi: kayit dosyalari durumu sayi olarak yaziyor, ara
-        /// degerler arasina eklenemez.
-        /// </summary>
-        Carried = 6,
-
-}
-
-    /// <summary>
-    /// Tek bir kargo. SAF C# sinifi (MonoBehaviour degil) - test edilebilir
-    /// ve havuzlanabilir olsun diye.
-    ///
-    /// "Nereye" sorusu burada YALNIZCA bir tamsayidir. Gercek adres/koordinat
-    /// AÅŸama 4'te (teslimat) eklenir; simdilik kargo sistemi haritayi bilmez.
     /// </summary>
     public sealed class Parcel
     {
@@ -129,9 +76,36 @@ namespace KargoSim.Cargo
         /// <summary>Kutu kuryenin eline gecti (asama 33).</summary>
         public void MarkCarried()
         {
-            State = ParcelState.Carried;
-            TimeLoaded = -1f;
+            TryChangeState(ParcelState.Carried);
         }
+
+        /// <summary>
+        /// TEK SAHIPLI KORUMALI GECIS (kargoMekanigi.md #64, #63).
+        ///
+        /// Eski sistemde gecisler `MarkCarried/MarkLoaded/MarkDelivered`
+        /// gibi birbirinden bagimsiz metodlardi; UI, arac ve teslimat
+        /// sistemi kendi kuralini uygulayabiliyordu. Bu yuzden teslim
+        /// edilmis kargo tekrar yuklenebiliyordu.
+        ///
+        /// Artik TUM gecisler tek tablodan dogrulanir. Gecersiz gecis
+        /// reddedilir ve nesne ESKI DURUMUNDA kalir - kargo kaybolmaz.
+        /// </summary>
+        public bool TryChangeState(ParcelState next)
+        {
+            if (State == next) return true;
+
+            if (!ParcelStateRules.CanGoTo(State, next))
+            {
+                Debug.LogWarning("[Parcel] GECERSIZ GECIS engellendi: "
+                    + State + " -> " + next + " (parcel #" + Id + "). "
+                    + "Kargo eski durumunda korunuyor; kaybolmuyor.");
+                return false;
+            }
+
+            State = next;
+            return true;
+        }
+
 
         /// <summary>0..1 arasi paketleme ilerlemesi.</summary>
         public float PackagingProgress01 => PackagingSteps.Progress01(PackagingProgress);
@@ -185,7 +159,7 @@ namespace KargoSim.Cargo
         {
             if (PackagingProgress != PackagingStep.None) return;
 
-            State = ParcelState.Packaging;
+            RestoreState(ParcelState.Packaging);
             PackagingStartedTime = systemTime;
         }
 
@@ -198,7 +172,7 @@ namespace KargoSim.Cargo
         {
             if (PackagingProgress == PackagingStep.None)
             {
-                State = ParcelState.Packaging;
+                RestoreState(ParcelState.Packaging);
                 if (PackagingStartedTime < 0f) PackagingStartedTime = 0f;
             }
 
@@ -213,7 +187,7 @@ namespace KargoSim.Cargo
         /// <summary>Paket tamamlandi: durum Ready olur.</summary>
         private void MarkPackagingFinished()
         {
-            State = ParcelState.Ready;
+            RestoreState(ParcelState.Ready);
         }
 
         /// <summary>
@@ -224,7 +198,7 @@ namespace KargoSim.Cargo
             PackagingProgress = PackagingStep.None;
             PackagingStartedTime = -1f;
             if (State == ParcelState.Packaging || State == ParcelState.Ready)
-                State = ParcelState.WaitingInDepot;
+                RestoreState(ParcelState.WaitingInDepot);
         }
 
         /// <summary>
@@ -236,7 +210,7 @@ namespace KargoSim.Cargo
         /// ayni gun ikinci kez teslim edebiliyor, odeme ve XP iki kez
         /// yaziliyordu. Discarded ayrica "aktif" sayilmaz.
         /// </summary>
-        public bool IsActive => State != ParcelState.Delivered && State != ParcelState.Discarded;
+        public bool IsActive => State != ParcelState.Delivered && State != ParcelState.Cancelled;
 
         /// <summary>
         /// Taban deger (TL). Oncelik carpani DAHIL DEGIL: odeme hesabini
@@ -258,18 +232,45 @@ namespace KargoSim.Cargo
             Priority = priority;
             DeadlineSeconds = deadlineSeconds;
             BaseValue = baseValue;
-            State = ParcelState.WaitingInDepot;
+            RestoreState(ParcelState.WaitingInDepot);
+        }
+
+        /// <summary>
+        /// SISTEM SEVIYESI STATE YAZMA - dogrulama YAPMAZ.
+        ///
+        /// Kullanici/oyuncu yolu DEGILDIR. Sadece:
+        ///   - SaveSystem (kayit geri yuklerken)
+        ///   - gun sonu temizligi
+        ///   - manifest'in mevcut durumu teyit etmesi
+        /// icindir.
+        ///
+        /// NEDEN AYRI: kargoMekanigi.md #63 oyuncu yolunu kisitlar
+        /// (Depo -> Yuklendi dogrudan olmaz, once ele alinir). Ama
+        /// save dosyasi "bu kargo bisikletteydi" dediginde sistem
+        /// o durumu geri kurmak ZORUNDADIR. Ayni kurali buraya
+        /// uygularsak kayitli oyuncu ilerlemesini kaybederdi.
+        ///
+        /// Oyuncu eylemleri (E/G ile pickup, drop, load, unload)
+        /// ASLA bu metodu kullanmaz; onlar TryChangeState kullanir.
+        /// </summary>
+        public void RestoreState(ParcelState state)
+        {
+            State = state;
         }
 
         /// <summary>Araca yuklendi. Manifest tarafindan cagrilir.</summary>
         public void MarkLoaded(float systemTime)
         {
-            State = ParcelState.LoadedOnVehicle;
+            RestoreState(ParcelState.LoadedOnVehicle);
             TimeLoaded = systemTime;
         }
 
-        /// <summary>Teslim edildi (AÅŸama 4). Artik araÃ§ta degildir.</summary>
-        public void MarkDelivered() => State = ParcelState.Delivered;
+        /// <summary>
+        /// Teslim edildi. Dunya nesnesi ANCAK bundan sonra yok olur
+        /// (kargoMekanigi.md #56, #57).
+        /// </summary>
+        public void MarkDelivered() => RestoreState(ParcelState.Delivered);
+
 
         /// <summary>Depoya geri alindi (gun sonu bos arac vb.).</summary>
         /// <remarks>
@@ -281,7 +282,7 @@ namespace KargoSim.Cargo
         /// </remarks>
         public void MarkReturnedToDepot()
         {
-            State = IsPackaged ? ParcelState.Ready : ParcelState.WaitingInDepot;
+            RestoreState(IsPackaged ? ParcelState.Ready : ParcelState.WaitingInDepot);
             TimeLoaded = -1f;
         }
 
@@ -300,7 +301,7 @@ namespace KargoSim.Cargo
         /// </summary>
         public void MarkDiscarded()
         {
-            State = ParcelState.Discarded;
+            RestoreState(ParcelState.Cancelled);
             TimeLoaded = -1f;
         }
 
@@ -321,6 +322,12 @@ namespace KargoSim.Cargo
         /// Kisa, okunur etiket. UI'da kullanilir; tek yerde tutulur ki
         /// her ekran ayni metni gosterir.
         /// </summary>
+        /// <summary>
+        /// Kisa gorunur kimlik: #79'a gore benzersiz ParcelId (P0001).
+        /// HUD ve kutu etiketinde bu kullanilir.
+        /// </summary>
+        public string ShortLabel => "P" + Id.ToString("0000");
+
         public string Label
         {
             get

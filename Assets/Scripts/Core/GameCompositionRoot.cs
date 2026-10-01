@@ -160,8 +160,54 @@ namespace KargoSim.Core
             // de ayni bayragi kendi `Required` alanina alir.
             _packaging = new Cargo.PackagingSystem(config.requiresPackaging);
 
+            // YENI KARGO: fiziksel kutu kaydi ve arac kargo alanlari
+            // (kargoMekanigi.md #30, #84).
+            _world = global::KargoSim.Cargo.CargoWorldRegistry.Instance;
+            SetupVehicleCargoAreas();
+
             CreateNpcSystem();
         }
+
+        /// <summary>
+        /// Her aracin kasa alanina GERCEK yerlesim noktalari ve
+        /// kapasite verir (#30, #31, #32).
+        ///
+        /// Onceki sistemde kasadaki kutular "Izgara" algoritmasiyla
+        /// otomatik hesaplaniyordu; oyuncu hangi kutu nereye gitti
+        /// bilmiyordu ve kapasite yalnizca agirlik/hacim sayisiydi.
+        /// </summary>
+        private void SetupVehicleCargoAreas()
+        {
+            var all = FindAllVehicles();
+            for (int i = 0; i < all.Count; i++)
+            {
+                var comp = all[i] as Component;
+                GameObject v = comp != null ? comp.gameObject : null;
+                if (v == null) continue;
+
+                bool isVan = v.GetComponent<Vehicle.ArcadeVehicleController>() != null;
+                var area = v.GetComponentInChildren<Cargo.VehicleCargoArea>(true);
+                if (area == null)
+                {
+                    var go = new GameObject("CargoArea");
+                    go.transform.SetParent(v.transform, false);
+                    // Bisiklet kasasi aracin uzerinde; van kasasi arkada.
+                    go.transform.localPosition = isVan
+                        ? new Vector3(0f, 1.35f, -1.5f)
+                        : new Vector3(0f, 0.95f, -0.9f);
+                    area = go.AddComponent<Cargo.VehicleCargoArea>();
+                }
+                area.Configure(isVan
+                    ? new Cargo.CargoCapacity(350f, 900f)
+                    : new Cargo.CargoCapacity(60f, 150f));
+
+                // VanCargoPoint ayni alani kullanir.
+                var point = v.GetComponentInChildren<Player.VanCargoPoint>(true);
+                if (point != null) point.Area = area;
+            }
+        }
+
+        private Cargo.CargoWorldRegistry _world;
 
         /// <summary>
         /// NPC sistemi: her adres icin bir musteri.
@@ -307,6 +353,26 @@ namespace KargoSim.Core
             var fpsCamera = courier.GetComponentInChildren<Camera>(true);
 
             courier.Configure(null, fpsCamera, vehicleCamera, null, vehicleController);
+
+            // YENI: tek-kargo tasiyici. Elde ayni anda SADECE 1 fiziksel
+            // kargo tasinir (kargoMekanigi.md #10). Eski sistem 3 kutu
+            // yigini tasiyordu ve gorselleri anlik uretiliyordu.
+            var carry = courier.GetComponent<Cargo.CargoCarryController>();
+            if (carry == null) carry = courier.gameObject.AddComponent<Cargo.CargoCarryController>();
+            // Tasiyici noktasi kameranin altinda (#71: yuzu/kamerayi kapatmaz).
+            Transform hold = courier.transform.Find("FpsCamera/CargoHoldAnchor");
+            if (hold == null)
+            {
+                var hg = new GameObject("CargoHoldAnchor");
+                hg.transform.SetParent(fpsCamera != null ? fpsCamera.transform
+                                                          : courier.transform, false);
+                hg.transform.localPosition = new Vector3(0.32f, -0.34f, 0.72f);
+                hg.transform.localRotation = Quaternion.Euler(6f, -6f, 0f);
+                hold = hg.transform;
+            }
+            carry.ConfigureAnchor(hold);
+            courier.SetCarryController(carry);
+            if (carry != null) carry.SetManifest(_cargo != null ? _cargo.Manifest : null);
 
             // ASAMA 14: oyuncu ARTAKTA baslar.
             //

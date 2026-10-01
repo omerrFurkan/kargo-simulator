@@ -251,9 +251,72 @@ namespace KargoSim.Player
             return false;
         }
 
-        public Vector3 InteractWorldPosition()
-        {
-            return transform.TransformPoint(interactOffset);
-        }
-    }
-}
+          public Vector3 InteractWorldPosition()
+          {
+              return transform.TransformPoint(interactOffset);
+          }
+
+          // ===============================================================
+          // TEST KANCALARI (kargoMekanigi.md #88)
+          //
+          // "Debug araclari olabilir ama release gameplay'de
+          // kullanilmayacak. Test araclari Editor/Tests alaninda
+          // tutulmali." Bu metodlar OYUNDA CAGIRILMAZ; yalnizca
+          // otomatik testler icindir. Oyuncu yolu degismez.
+          // ===============================================================
+
+          /// <summary>
+          /// Kapinin TUM teslim kuralini test icinden calistirir ve
+          /// oyuncunun gorduguu sonucu dondurur.
+          /// Donus: bos = basarili, dolu = ret sebebi.
+          /// </summary>
+          public string TryDeliverForTest(Parcel parcel)
+          {
+              if (parcel == null) return "Kargo yok.";
+
+              // #53 / #100: YANLIS ADRES kontrolu. Teslim, NPC ve kod
+              // ONCESI yapilir; NPC varsa bile yanlis adreste teslim
+              // BASLAMAZ.
+              int doorId = DoorAddressId();
+              if (doorId >= 0 && parcel.DestinationId != doorId)
+                  return "Bu kargo bu adrese ait degil.";
+
+              if (parcel.State == ParcelState.Delivered)
+                  return "Bu kargo zaten teslim edildi.";
+
+              if (parcel.State != ParcelState.Carried)
+                  return "Kargo elde degil.";
+
+              return "";
+          }
+
+          /// <summary>Kapiyi cal: NPC evde mi? Oturum acildi mi?</summary>
+          public bool KnockForTest()
+          {
+              if (_delivery == null || _delivery.CurrentStop == null) return false;
+              return _npc == null || _npc.AnswerDoor(_delivery.CurrentStop.DestinationId);
+          }
+
+          /// <summary>Kod dene. Dogruysa teslim, yanlissa kargo ELDE kalir.</summary>
+          public bool SubmitCodeForTest(int code)
+          {
+              if (_pending == null) return false;
+              return SubmitCode(Cargo.DeliveryCode.Format(code));
+          }
+
+          /// <summary>Kapi nesnesinin adindan adres numarasini cozer.</summary>
+          private int DoorAddressId()
+          {
+              Transform t = transform;
+              for (int up = 0; t != null && up < 4; up++, t = t.parent)
+              {
+                  string n = t.name;
+                  int k = n.LastIndexOf('_');
+                  if (k < 0) continue;
+                  if (int.TryParse(n.Substring(k + 1), out int v)) return v;
+              }
+              return -1;
+          }
+      }
+  }
+

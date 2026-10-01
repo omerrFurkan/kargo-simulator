@@ -23,7 +23,7 @@ namespace KargoSim.UI
     ///   [4-6]  aractaki kutu -> ele al
     ///   [ESC]  kapat
     ///
-    /// NEDEN NUMARA TUSU (fare degil): proje zaten klavyeyle oynanıyor
+    /// NEDEN NUMARA TUSU (fare degil): proje zaten klavyeyle oynanÄ±yor
     /// ve depo paneli 1-9 ile calisiyor. Ayni gelenek, ayri ogrenme maliyeti.
     ///
     /// SIRALAMA: kutular HEDEFE GORE dizilir (once kucuk adres, ayni
@@ -92,105 +92,19 @@ namespace KargoSim.UI
         }
 
         // ==================================================================
-        // SLOT ISLEMLERI
+        // TRANSFER YOK - BILINCLI KARAR
+        //
+        // Onceki surumde bu panel [1-3] / [4-6] tuslariyla kargoyu
+        // araca/ele "aktariyordu". Bu kargoMekanigi.md #23, #94 ve #120'nin
+        // ACIK YASAGI:
+        //   "TAB paneli fiziksel kargoyu teleportun kisayolu OLMAMALI"
+        //   "Panelden secmek oyuncunun onu eline teleport ETMEMELI"
+        //   "E -> +1 Cargo gibi calismayacak"
+        //
+        // Bu yuzden transfer kodu TAMAMEN SILINDI. Panel artik yalnizca
+        // BILGI gosterir. Kargoyu almak / birakmak / yuklemek icin oyuncu
+        // fiziksel olarak E ve G kullanir.
         // ==================================================================
-
-        /// <summary>Slot numarasina basildi. 1-3 elden araca, 4-6 araçtan ele.</summary>
-        public bool UseSlot(int slot)
-        {
-            if (!IsOpen) return false;
-
-            bool ok;
-            if (slot >= 1 && slot <= MaxSlots) ok = PutIntoVehicle(slot);
-            else if (slot >= VehicleSlotsStart && slot < VehicleSlotsStart + MaxSlots)
-                ok = TakeFromVehicle(slot - VehicleSlotsStart + 1);
-            else return false;
-
-            Refresh();
-            return ok;
-        }
-
-        /// <summary>ELDEKI kutu -> arac.</summary>
-        public bool PutIntoVehicle(int handIndex)
-        {
-            LastMessage = "";
-            if (_cargo == null || _courier == null) return false;
-
-            // "Elde" listesi KURYENIN ELIDIR; manifestin `_carried`
-            // listesi degil. Musteriden alinan kutu sistemde depoda
-            // kalir, aractan cekilen `_carried`a gecer; ikisi de fiziksel
-            // olarak kuryededir. Tek kaynak `CarriedParcels` olmalidir.
-            var hand = _courier.CarriedParcels;
-            if (handIndex < 1 || handIndex > hand.Count)
-            {
-                LastMessage = "O slot bos.";
-                return false;
-            }
-
-            Parcel parcel = hand[handIndex - 1];
-            if (parcel == null) return false;
-
-            if (!parcel.IsPackaged)
-            {
-                LastMessage = "Bu kutu paketlenmis degil. Once paketle.";
-                return false;
-            }
-
-            float now = _delivery != null ? _delivery.Elapsed : 0f;
-            if (!_cargo.TryLoadParcel(parcel.Id, now))
-            {
-                LastMessage = "Kapasite dolu. Elindeki kutu sende kaldi.";
-                return false;
-            }
-
-            if (!_courier.DropOne(parcel))
-            {
-                // Geri al: elden cikamadi, tutarli olsun diye arca geri koy.
-                _cargo.Manifest.UnloadParcel(parcel);
-                _courier.PickUp(parcel);
-                LastMessage = "Kutu elinden cikamadi.";
-                return false;
-            }
-
-            LastMessage = "#" + parcel.Id + " araca kondu.";
-            return true;
-        }
-
-        /// <summary>ARACTAKI kutu -> el.</summary>
-        public bool TakeFromVehicle(int vehicleIndex)
-        {
-            LastMessage = "";
-            if (_cargo == null || _courier == null) return false;
-
-            if (!_courier.CanCarryMore)
-            {
-                LastMessage = "Elin dolu. Once bir kutuyu birak.";
-                return false;
-            }
-
-            var loaded = _cargo.Manifest.Loaded;
-            if (vehicleIndex < 1 || vehicleIndex > loaded.Count)
-            {
-                LastMessage = "O slot bos.";
-                return false;
-            }
-
-            Parcel parcel = loaded[vehicleIndex - 1];
-            if (parcel == null) return false;
-
-            if (!_cargo.Manifest.UnloadParcel(parcel)) return false;
-
-            if (!_courier.PickUp(parcel))
-            {
-                // El dolu cikti: kutuyu aracta birak.
-                _cargo.Manifest.TryLoad(parcel, _delivery != null ? _delivery.Elapsed : 0f);
-                LastMessage = "Elin dolu.";
-                return false;
-            }
-
-            LastMessage = "#" + parcel.Id + " eline alindi.";
-            return true;
-        }
 
         // ==================================================================
         // YAZI (saf, test edilebilir)

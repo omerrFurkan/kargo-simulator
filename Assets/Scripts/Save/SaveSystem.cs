@@ -410,7 +410,7 @@ namespace KargoSim.Save
                 // Teslim edilmis / kalici atilmis kargo listede bulunmamalidir.
                 // Depoya eklersek oyuncu ayni kargoyu ikinci kez yukleyip
                 // TESLIM EDEBILIR: odeme iki kez yazilir. Bu yuzden atlanir.
-                if (state == ParcelState.Delivered || state == ParcelState.Discarded)
+                if (state == ParcelState.Delivered || state == ParcelState.Cancelled)
                 {
                     skipped++;
                     continue;

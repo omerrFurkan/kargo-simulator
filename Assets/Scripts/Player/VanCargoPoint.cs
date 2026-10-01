@@ -42,6 +42,19 @@ namespace KargoSim.Player
             _vehicleCamera = vehicleCamera;
         }
 
+        /// <summary>Aracin GERCEK kargo alani (#30). Fiziksel slotlar, kapasite.</summary>
+        [SerializeField] private VehicleCargoArea _area;
+
+        public VehicleCargoArea Area
+        {
+            get
+            {
+                if (_area == null) _area = GetComponentInChildren<VehicleCargoArea>();
+                return _area;
+            }
+            set { _area = value; }
+        }
+
         public string Prompt
         {
             get
@@ -77,6 +90,33 @@ namespace KargoSim.Player
         {
             if (!CanInteract(courier)) return;
 
+            // YENI OYUNCU YOLU (kargoMekanigi.md #33, #41, #44, #45, #47).
+            //
+            // Onceki sistem: `E` kuryede kargo varsa hepsini yaziyor,
+            // yoksa aractaki kargolardan BIRINI aliyordu. Simdi:
+            //   Elde kargo var  -> TEK kargo araca konur (#122 toplu YASAK)
+            //   Elde kargo yok  -> BAKILAN kutu kasadan alinir (#45)
+            // Kapasite/temiz yuzey degilse kutuyu ELDE TUTARIZ (#41).
+            var carry = courier != null ? courier.Carry : null;
+            if (carry != null)
+            {
+                if (carry.HasCargo)
+                {
+                    if (_area != null)
+                        carry.TryLoadToVehicle(_area);
+                    return;
+                }
+
+                // Oyuncu hangi kutuya bakiyorsa O alinir.
+                ParcelWorldObject looked = LookedAtBox(courier);
+                if (looked != null && _area != null)
+                {
+                    carry.TryUnloadFromVehicle(_area, looked);
+                    return;
+                }
+            }
+
+            // Geriye donus uyumu: yeni tasiyici yoksa eski yol.
             if (courier.IsCarrying)
             {
                 LoadCarried(courier);
@@ -90,6 +130,33 @@ namespace KargoSim.Player
             }
 
             Board(courier);
+        }
+
+        /// <summary>
+        /// Oyuncunun BAKTIGI kutu (#45).
+        ///
+        /// "Rastgele bir kutu" secmek oyuncuyu yanlis kapinin onune
+        /// goturuyordu; sistem baska kutuyu secebilmemeli.
+        /// </summary>
+        private ParcelWorldObject LookedAtBox(CourierController courier)
+        {
+            if (_area == null || courier == null) return null;
+
+            Vector3 o = courier.transform.position + Vector3.up * 1.3f;
+            RaycastHit[] hits = Physics.RaycastAll(
+                o, courier.transform.forward, 4.2f, ~0, QueryTriggerInteraction.Collide);
+
+            ParcelWorldObject best = null;
+            float bestD = float.MaxValue;
+            for (int i = 0; i < hits.Length; i++)
+            {
+                var box = hits[i].collider.GetComponentInParent<ParcelWorldObject>();
+                if (box == null) continue;
+                if (box.Parcel == null) continue;
+                if (box.Parcel.State != ParcelState.LoadedOnVehicle) continue;
+                if (hits[i].distance < bestD) { bestD = hits[i].distance; best = box; }
+            }
+            return best;
         }
 
         /// <summary>

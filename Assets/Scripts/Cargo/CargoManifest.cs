@@ -64,6 +64,40 @@ namespace KargoSim.Cargo
         /// Kapasite arac kargosu icindir; kutu eldeyken araci mesgul
         /// etmez, boylece oyuncu kutuyu cekerek yer acabilir.
         /// </summary>
+        /// <summary>
+        /// KUTU KURYENIN ELINE GECTI (yeni tasiyici cagirir).
+        ///
+        /// ONCEKI SISTEMDE kuru kargoyu ALINCA manifest sadece
+        /// "tasiniyor" diye bir bayrak tutuyordu; kargonun KENDI listesi
+        /// degismiyordu. Bu yuzden yeni fiziksel tasima sisteminde
+        /// kutu kuryeye gecse bile ROTA onu gormuyordu ve teslim
+        /// yapilamiyordu.
+        ///
+        /// Kargo kaybolmaz; sadece listeler arasinda yer degistirir.
+        /// </summary>
+        public void NoteCarriedByPlayer(Parcel parcel)
+        {
+            if (parcel == null) return;
+            if (!_carried.Contains(parcel)) _carried.Add(parcel);
+        }
+
+        /// <summary>Kutu kuryeden CIKTI (yere birakildi / araca kondu).</summary>
+        public void NoteReleasedByPlayer(Parcel parcel)
+        {
+            if (parcel == null) return;
+            _carried.Remove(parcel);
+        }
+
+        /// <summary>
+        /// Kutu araca kondu: tasima listesinden arac listesine.
+        /// </summary>
+        public void NoteLoadedOnVehicle(Parcel parcel)
+        {
+            if (parcel == null) return;
+            _carried.Remove(parcel);
+            if (!_loaded.Contains(parcel)) _loaded.Add(parcel);
+        }
+
         public bool UnloadParcel(Parcel parcel)
         {
             if (parcel == null) return false;

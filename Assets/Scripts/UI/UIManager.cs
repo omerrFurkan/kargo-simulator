@@ -17,7 +17,7 @@ namespace KargoSim.UI
     ///  - Baglama bagli gorunumler (minimap) her kare tazelemek
     ///
     /// Update() YOK. CompositionRoot her karede <see cref="Tick"/> cagirir.
-    /// Boylece "oyunda tek Update" kurali bozulmaz ve UI simülasyonla
+    /// Boylece "oyunda tek Update" kurali bozulmaz ve UI simÃƒÂ¼lasyonla
     /// ayni karede guncellenir.
     ///
     /// PERFORMANS: Metinler her karede degil, DEGER DEGISTIGINDE
@@ -66,7 +66,7 @@ namespace KargoSim.UI
         [SerializeField] private float depotRadius = 12f;
 
         [Header("Klavye")]
-        [Tooltip("Bağlamsal onay: depoda panel açar ve seçili kargoyu yükler, " +
+        [Tooltip("BaÃ„Å¸lamsal onay: depoda panel aÃƒÂ§ar ve seÃƒÂ§ili kargoyu yÃƒÂ¼kler, " +
                  "durakta teslim yapar.\n" +
                  "TAB bu tusun alternatifi olarak birakildi ama Unity EDITORU " +
                  "Tab'i odak degistirmek icin kullanir - Editor'de calismaz, " +
@@ -203,7 +203,7 @@ namespace KargoSim.UI
             // ASAMA 31: odaktaki esyanin ozellik penceresi.
             UpdateTooltip();
 
-            // ENVANTER: I ile acilir, 1-3 elden araca, 4-6 araçtan ele.
+            // ENVANTER: I ile acilir, 1-3 elden araca, 4-6 araÃƒÂ§tan ele.
             //
             // Panel acikken dunya kontrolleri KISITLANIR (gorev #29
             // "panel acikken dunya kontrolleri yanlislikla calismamali").
@@ -211,15 +211,8 @@ namespace KargoSim.UI
             {
                 if (Input.GetKeyDown(inventoryKey)) inventoryView.Toggle();
 
-                if (inventoryView.IsOpen)
-                {
-                    for (int i = 0; i < CargoInventoryView.MaxSlots * 2; i++)
-                    {
-                        if (Input.GetKeyDown(KeyCode.Alpha1 + i))
-                            inventoryView.UseSlot(i + 1);
-                    }
-                    if (Input.GetKeyDown(KeyCode.Escape)) inventoryView.Close();
-                }
+                if (inventoryView.IsOpen && Input.GetKeyDown(KeyCode.Escape))
+                    inventoryView.Close();
             }
 
             // Yalnizca baglama bagli olan minimap her kare tazelenir.
@@ -232,9 +225,9 @@ namespace KargoSim.UI
             bool atDepot = IsAtDepot();
             bool depotOpen = depotView != null && depotView.IsOpen;
 
-            // --- Gün sonu özeti: oyun DURUR, oyuncu okuyup devam eder ---
-            // Önce panel "Tab: yeni güne başla" yazıyordu ama Tab hiçbir
-            // şey yapmıyordu ve oyun panelin arkasında kesintisiz akıyordu.
+            // --- GÃƒÂ¼n sonu ÃƒÂ¶zeti: oyun DURUR, oyuncu okuyup devam eder ---
+            // Ãƒâ€“nce panel "Tab: yeni gÃƒÂ¼ne baÃ…Å¸la" yazÃ„Â±yordu ama Tab hiÃƒÂ§bir
+            // Ã…Å¸ey yapmÃ„Â±yordu ve oyun panelin arkasÃ„Â±nda kesintisiz akÃ„Â±yordu.
             if (summaryView != null && summaryView.IsOpen)
             {
                 if (Input.GetKeyDown(confirmKey) || Input.GetKeyDown(depotToggleKey))
@@ -346,8 +339,8 @@ namespace KargoSim.UI
         {
             if (_courier == null) return;
 
-            // ASAMA 15: IKI ARAÇ var (van + bisiklet) ve F oyuncunun
-            // YANINDAKİ araca binmeli.
+            // ASAMA 15: IKI ARAÃƒâ€¡ var (van + bisiklet) ve F oyuncunun
+            // YANINDAKÃ„Â° araca binmeli.
             //
             // Once TEK bir kargo noktasi tutuluyordu ve o her zaman VAN'in
             // noktasiydi. Sonuc: bisiklete HICBIR ZAMAN binilemiyordu,
@@ -380,7 +373,7 @@ namespace KargoSim.UI
         /// <summary>
         /// Oyuncunun EN YAKININDAKI arac kargo noktasi.
         ///
-        /// ASAMA 29: ARACTAYKEN KURYE DEGIL, ARAÇ REFERANS ALINIR.
+        /// ASAMA 29: ARACTAYKEN KURYE DEGIL, ARAÃƒâ€¡ REFERANS ALINIR.
         ///
         /// Iki oyuncunun bildirdigi hata buradan geliyordu:
         ///

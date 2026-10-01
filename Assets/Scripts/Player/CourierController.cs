@@ -67,7 +67,7 @@ namespace KargoSim.Player
 
         [Header("Tasma")]
         [Tooltip("Ayni anda tasinabilecek kutu adedi.")]
-        [SerializeField] private int maxCarry = 3;
+        [SerializeField] private int maxCarry = 1;
 
         [Header("Etkilesim")]
         [Tooltip("Bu yaricapta etkilesim noktasi aranir (metre).")]
@@ -105,6 +105,27 @@ namespace KargoSim.Player
         /// yukleniyordu). Iki liste da ayni sirayi paylasir.
         /// </summary>
         private readonly List<Parcel> _carriedParcels = new List<Parcel>();
+
+        /// <summary>
+        /// YENI TEK-KARGO TASIYICI (kargoMekanigi.md #10).
+        ///
+        /// Onceki sistem kuryede 3 kargo YIGINI tasiyordu ve kutu
+        /// gorselleri anlik URETILIYORDU; fiziksel kargo yoktu, sadece
+        /// sayi vardi. Artik kapasite 1, kutu fiziksel bir nesne ve
+        /// G ile kontrollu birakma var.
+        ///
+        /// Eski API (CarriedCount / PickUp / DropOne) adaptor olarak
+        /// korunur; 22 baska dosya bu API'ye bagliydi.
+        /// </summary>
+        [SerializeField] private Cargo.CargoCarryController _carry;
+
+        public Cargo.CargoCarryController Carry => _carry;
+
+        public void SetCarryController(Cargo.CargoCarryController c)
+        {
+            _carry = c;
+            if (c != null && carryAnchor != null) c.ConfigureAnchor(carryAnchor);
+        }
         private readonly Collider[] _hitBuffer = new Collider[12];
 
         private float _pitch;
@@ -225,9 +246,27 @@ namespace KargoSim.Player
 
             Look();
             HandleClickToRecapture();
+            HandleDropKey();
             Move(deltaTime);
             ScanForFocus();
             UpdateLocomotionAnimation();
+        }
+
+        /// <summary>
+        /// G tusu: eldeki kutuyu yere birak.
+        ///
+        /// #133 RESPONSIVE: yalnizca `GetKeyDown` ile bir kez tetiklenir,
+        /// boylece tus iki kez islem yapmaz. #134: ayni islem baslamisken
+        /// ikinci kez baslanmaz.
+        /// </summary>
+        private void HandleDropKey()
+        {
+            if (_carry == null || !_carry.HasCargo) return;
+            if (!Input.GetKeyDown(_carry.DropKey)) return;
+            if (!_carry.TryBeginOperation()) return;
+
+            TryDropCargo();
+            _carry.EndOperation();
         }
 
         // ------------------------------------------------------------------
@@ -272,9 +311,24 @@ namespace KargoSim.Player
             Vector3 right = Vector3.ProjectOnPlane(transform.right, Vector3.up).normalized;
             Vector3 wish = (forward * z + right * x).normalized;
 
-            bool running = Input.GetKey(KeyCode.LeftShift) && !IsCarrying;
-            float speed = running ? runSpeed : walkSpeed;
-            if (IsCarrying) speed *= 0.75f;
+              // kosma: kargo tasirken de mumkun (#149) ama yavaslar.
+              //
+              // ONCEKI HATA: `&& !IsCarrying` kosmayi kargo eldeyken
+              // TAMAMEN kapatiyordu. Kargo tasirken kosamamak oyuncuyu
+              // iskenceye donusturuyordu; spec bunu acikca yasakliyor.
+              bool running = Input.GetKey(KeyCode.LeftShift);
+              float speed = running ? runSpeed : walkSpeed;
+
+              // Hiz carpanlari (kargoMekanigi.md #14):
+              //   Normal 1.0 / Holding 0.8 / Running 0.65
+              if (IsCarrying)
+              {
+                  float m = _carry != null
+                      ? (running ? _carry.HoldRunMultiplier : _carry.HoldSpeedMultiplier)
+                      : 0.75f;
+                  speed *= m;
+              }
+
 
             if (controller.isGrounded)
             {
@@ -417,6 +471,22 @@ namespace KargoSim.Player
             if (_focus == null) return false;
             _focus.Interact(this);
             return true;
+        }
+
+        /// <summary>
+        /// G: ELDEKI KARGOYU YERE BIRAK (kargoMekanigi.md #15, #18).
+        ///
+        /// G FIRLATMA TUSU DEGILDIR. Fizik kuvveti uygulanmaz, kutu
+        /// ileriye atilmaz. Gecersiz yuzeyde kutu ELDE KALIR ve
+        /// sebep yazilir (#17).
+        ///
+        /// ONCEKI SISTEMDE kuruyla G tusu HIC bagli degildi; kutu
+        /// ancak araca konunca veya oyun bittiginde kayboluyordu.
+        /// </summary>
+        public bool TryDropCargo()
+        {
+            if (_carry == null || !_carry.HasCargo) return false;
+            return _carry.TryDrop();
         }
 
         // ------------------------------------------------------------------

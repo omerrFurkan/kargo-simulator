@@ -177,22 +177,32 @@ namespace KargoSim.Tests.EditMode
             IReadOnlyList<Parcel> depot = _cargo.Manifest.Available;
             Assert.GreaterOrEqual(depot.Count, 4, "Test icin en az 4 kargo uretilmeli.");
 
+            // ------------------------------------------------------------------
+            // YENI DAVRANIS: elde ayni anda SADECE 1 kargo.
+            //
+            // kargoMekanigi.md #10: "Oyuncunun ayni anda SADECE 1 fiziksel
+            // kargo tasimasina izin ver. Bu kritik."
+            //
+            // Onceki test 3 kutunun YIGINLABILECEGINI dogruluyordu.
+            // Spec #137 geregi bu davranis kaldirildigi icin test de
+            // yeniden yazildi: eski kotu davranisi test eden testler
+            // kabul edilmez.
+            // ------------------------------------------------------------------
             IgnoreEditorDestroyError(() => _courier.PickUp(depot[0]));
-            IgnoreEditorDestroyError(() => _courier.PickUp(depot[1]));
-            IgnoreEditorDestroyError(() => _courier.PickUp(depot[2]));
 
-            Assert.AreEqual(3, _courier.CarriedCount, "Ilk uc kutu alinmali.");
-            Assert.IsFalse(_courier.CanCarryMore, "maxCarry 3: el doldu.");
+            Assert.AreEqual(1, _courier.CarriedCount,
+                "Elde SADECE 1 kargo olmali. Oyuncu 3 kutu yigini tasimamali "
+                + "(kargoMekanigi #10).");
 
-            bool fourth = true;
-            IgnoreEditorDestroyError(() => fourth = _courier.PickUp(depot[3]));
+            bool second = true;
+            IgnoreEditorDestroyError(() => second = _courier.PickUp(depot[1]));
 
-            Assert.IsFalse(fourth,
-                "Kapasite doluyken 4. kutu ALINMAMALI (maxCarry = 3).");
-            Assert.AreEqual(3, _courier.CarriedCount,
-                "Alinamayan 4. kutudan sonra elde yine 3 kutu olmali.");
-            Assert.AreEqual(3, _courier.CarriedParcels.Count,
-                "Gorsel yigin ile GERCEK kargo listesi esit olmali.");
+            Assert.IsFalse(second,
+                "Elde kargo varken 2. kutu ALINMAMALI (tek kargo kurali).");
+            Assert.AreEqual(1, _courier.CarriedCount,
+                "Alinamayan 2. kutudan sonra elde yine 1 kargo olmali.");
+            Assert.AreEqual(1, _courier.CarriedParcels.Count,
+                "Gorsel nesne ile GERCEK kargo listesi esit olmali.");
         }
 
         // ------------------------------------------------------------------
