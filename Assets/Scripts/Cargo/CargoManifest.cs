@@ -81,6 +81,15 @@ namespace KargoSim.Cargo
             if (!_carried.Contains(parcel)) _carried.Add(parcel);
         }
 
+        /// <summary>Kutu NPC'ye teslim edildi: listeden TAMAMEN cikar.</summary>
+        public void NoteDeliveredFromPlayer(Parcel parcel)
+        {
+            if (parcel == null) return;
+            _carried.Remove(parcel);
+            _loaded.Remove(parcel);
+            _available.Remove(parcel);
+        }
+
         /// <summary>Kutu kuryeden CIKTI (yere birakildi / araca kondu).</summary>
         public void NoteReleasedByPlayer(Parcel parcel)
         {

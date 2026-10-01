@@ -4,7 +4,7 @@ using UnityEngine;
 namespace KargoSim.Cargo
 {
     /// <summary>
-    /// PLAYER TEK-KARGO TASIYICI (kargoMekaniği.md #10, #11, #12, #13,
+    /// PLAYER TEK-KARGO TASIYICI (kargoMekaniÃ„Å¸i.md #10, #11, #12, #13,
     /// #14, #15, #16, #17, #18, #66, #119, #122, #123).
     ///
     /// EN KRITIK KURAL: ayni anda SADECE 1 fiziksel kargo.
@@ -168,7 +168,7 @@ namespace KargoSim.Cargo
             // Depo/kapi gibi acik alanda yatay isin HICBIR SEYE
             // carpamiyor ve sistem her seferinde "Buraya kargo
             // birakilamaz" diyordu - yani oyuncu kargoyu hicbir yere
-            // birakamıyordu.
+            // birakamÃ„Â±yordu.
             //
             // Dogru cozum: (1) onde bir yuzey varsa onu kullan,
             //              (2) yoksa onun ALTINDAKI zemini bul.
@@ -221,9 +221,9 @@ namespace KargoSim.Cargo
         }
 
         /// <summary>
-        /// Kutu cevreye gomulmemeli (#74). OverlapBox ile "içinde
-        /// bir sey var mi" kontrol edilir; sıkışıksa yanlara doğru
-        /// kaydırılır.
+        /// Kutu cevreye gomulmemeli (#74). OverlapBox ile "iÃƒÂ§inde
+        /// bir sey var mi" kontrol edilir; sÃ„Â±kÃ„Â±Ã…Å¸Ã„Â±ksa yanlara doÃ„Å¸ru
+        /// kaydÃ„Â±rÃ„Â±lÃ„Â±r.
         /// </summary>
         private bool TryFindFreeSpot(Vector3 point, Vector3 normal, Vector3 half,
                                      out Vector3 result)
@@ -231,7 +231,7 @@ namespace KargoSim.Cargo
             result = point;
 
             // ONCEKI HATA: OverlapBox kontrolu oyuncunun KENDI
-            // CharacterController'ini da sayiyordu. Kutu bırakma
+            // CharacterController'ini da sayiyordu. Kutu bÃ„Â±rakma
             // noktasi oyuncunun 0.9 m onunde ama govdesi yaricap
             // 0.32 + kutu yaricap oldugu icin her zaman "engelli"
             // cikiyordu ve hicbir kargo birakilamiyordu.
@@ -302,7 +302,7 @@ namespace KargoSim.Cargo
         }
 
         // ===============================================================
-        // ARAÇ (#33, #41, #46, #47, #103)
+        // ARAÃƒâ€¡ (#33, #41, #46, #47, #103)
         // ===============================================================
         /// <summary>
         /// Eldeki kutuyu arac kasa alanina koy. Tek kargo (#122 toplu
@@ -397,6 +397,22 @@ namespace KargoSim.Cargo
             return true;
         }
 
+/// <summary>
+        /// Kutu NPC'ye TESLIM EDILDI: tasima biter, el bosalir.
+        ///
+        /// `TryDrop` DEGILDIR: kutu yere birakilmaz, zaten NPC'nin
+        /// eline gecmistir. Sadece referans temizlenir.
+        /// Ayrica manifest listesinden de cikarilir, yoksa rota eski
+        /// kargoyu takip etmeye devam eder.
+        /// </summary>
+        public bool HandOffDelivered(ParcelWorldObject box)
+        {
+            if (box == null) return false;
+            if (_manifest != null) _manifest.NoteDeliveredFromPlayer(box.Parcel);
+            if (_held != box) return false;
+            _held = null;
+            return true;
+        }
         // ===============================================================
         // HIZ (#14, #149)
         // ===============================================================

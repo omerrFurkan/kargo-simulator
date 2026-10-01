@@ -144,7 +144,7 @@ namespace KargoSim.NPC
                 // her adres ayni olasilikta olursa bir gun 14 kişi de
                 // evde, bir gun hicbiri evde olabiliyor. Kademeli dagilim
                 // gunluk tabii his veriyor.
-                float chance = Mathf.Clamp01(homeChance - i * 0.02f + 0.05f);
+                float chance = Mathf.Clamp01(homeChance - i * 0.01f + 0.05f);
 
                 var profile = new NpcProfile(id, npcName, true, chance);
                 var runtime = new NpcRuntime(profile);

@@ -169,6 +169,15 @@ namespace KargoSim.Core
         public static void RaiseNPCAnswered(int destinationId, string name, int code) =>
             NPCAnswered?.Invoke(destinationId, name, code);
 
+        public static event Action<int, Cargo.Parcel> DoorWrongParcel;
+
+        /// <summary>
+        /// Kapi calindi ama oyuncunun elindeki kargo bu adrese ait
+        /// degil. Oyuncuya NEDEN teslim edemedigi yazilir.
+        /// </summary>
+        public static void RaiseDoorWrongParcel(int destinationId, Cargo.Parcel held) =>
+            DoorWrongParcel?.Invoke(destinationId, held);
+
         public static void RaiseCustomerNotHome(int destinationId) =>
             CustomerNotHome?.Invoke(destinationId);
 
@@ -237,6 +246,7 @@ namespace KargoSim.Core
             DoorKnocked = null;
             NPCAnswered = null;
             CustomerNotHome = null;
+            DoorWrongParcel = null;
             DeliveryCodeSubmitted = null;
             DeliveryCodeCorrect = null;
             DeliveryCodeWrong = null;

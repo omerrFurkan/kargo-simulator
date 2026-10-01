@@ -7,7 +7,7 @@ using UnityEngine;
 namespace KargoSim.Player
 {
     /// <summary>
-    /// Adres kapısı: kargo tesliminin SON NOKTASI.
+    /// Adres kapÃƒÆ’Ã¢â‚¬ÂÃƒâ€šÃ‚Â±sÃƒÆ’Ã¢â‚¬ÂÃƒâ€šÃ‚Â±: kargo tesliminin SON NOKTASI.
     ///
     /// AKIS (Asama 13):
     ///   E -> kapi calinir -> NPC cevap verir
@@ -42,6 +42,9 @@ namespace KargoSim.Player
         private Parcel _pending;
         private int _pendingStopId = -1;
 
+
+        /// <summary>Bu oturumda yapilan yanlis giris sayisi.</summary>
+        public int WrongAttempts { get; private set; }
         /// <summary>Kod girisi bekleyen kargo (yoksa null).</summary>
         public Parcel PendingParcel => _pending;
 
@@ -56,6 +59,18 @@ namespace KargoSim.Player
 
         /// <summary>NPC sistemini baglar (CompositionRoot cagirir).</summary>
         public void SetNpcSystem(NPCSystem npc) => _npc = npc;
+
+        /// <summary>
+        /// Kapiyi acan NPC figuru sahne acilir acilmaz hazirlanir.
+        ///
+        /// ONCE yalnizca `Interact` icinde ekleniyordu; yani kapi
+        /// calininca hicbir sey gorunmuyordu. Simdi NPC bastan duruyor
+        /// ama GIZLI; kapi calininca beliriyor.
+        /// </summary>
+        private void Awake()
+        {
+            DoorNpc.Attach(transform, DoorAddressId());
+        }
 
         // ------------------------------------------------------------------
         // IInteractable
@@ -88,15 +103,24 @@ namespace KargoSim.Player
             }
         }
 
-        public bool CanInteract(CourierController courier)
-        {
-            if (courier == null || _delivery == null) return false;
-            if (_delivery.CurrentStop == null) return false;
-            if (_delivery.CurrentStop.PendingCount <= 0) return false;
-            if (!courier.IsCarrying) return false;
+public bool CanInteract(CourierController courier)
+          {
+              if (courier == null || _delivery == null) return false;
+              if (_delivery.CurrentStop == null) return false;
 
-            return CarriesForThisStop();
-        }
+              // ONCE `PendingCount > 0` ve `CarriesForThisStop()` sartlari
+              // vardi. Oyuncunun elindeki kutu BU adrese ait degilse
+              // metot `false` donuyordu; odaklanma kapidan kapiya
+              // gidiyordu ve kapi HIC TEPKI VERMIYORDU.
+              //
+              // Oyuncunun ekraninda tam olarak bu vardi: elde "adres 7"
+              // kutusu, durak "Market #8". Kapi calinca bir sey
+              // olmuyordu; oyuncu "teslim edemiyorum" diyordu.
+              //
+              // Simdi: elde kargo varsa kapi ETKILESIMLIDIR. Kutu bu
+              // adrese ait degilse NPC yine gelir ve NEDENINI soyler.
+              return courier.IsCarrying;
+          }
 
         public void Interact(CourierController courier)
         {
@@ -109,6 +133,13 @@ namespace KargoSim.Player
 
             GameEvents.RaiseDoorKnocked(stop.DestinationId);
 
+            // 0) KAPIYI ACAN NPC'yi cagir (oyuncu istegi).
+            //
+            // ONCE ortada kimse yoktu: NPCSystem saf veri sinifi, ortada
+            // bir figur cizilmiyordu. Oyuncu "kapiyi caldim, bir sey
+            // olmadi" diyordu ve teslim edilmis saniyordu.
+            DoorNpc doorNpc = DoorNpc.Attach(transform, stop.DestinationId);
+
             // 1) Musteri evde degilse: teslim OLMAZ, kargo elde kalir.
             if (_npc != null && _npc.AnswerDoor(stop.DestinationId) == false)
             {
@@ -117,16 +148,36 @@ namespace KargoSim.Player
                 return;
             }
 
+            // Musteri cevap verdi: NPC KAPIYI ACAR ve gorunur.
+            //
+            // ONCE `ComeToDoor` kargo bulunduktan SONRA cagriliyordu.
+            // Oyuncu yanlis kutuyu getirince `FindParcelForStop` null
+            // donup metot erken cikiyordu ve NPC HIC gorunmuyordu -
+            // oyuncu "kapiyi caldim, kimse gelmedi" diyordu.
+            //
+            // Dogru olan: kapi calininca NPC gorunur. Kutu yanlissa da
+            // NPC kapidadir ve "bu adrese ait degil" der.
+            if (doorNpc != null) doorNpc.ComeToDoor();
+
             // 2) Bu adrese ait kargoyu sec.
             Parcel parcel = FindParcelForStop(courier, stop);
-            if (parcel == null) return;
+            if (parcel == null)
+            {
+                // NPC kapida bekliyor ama oyuncunun bu adrese ait
+                // kargosu yok. Kargo ELDE KALIR (#57) ve oyuncuya
+                // NEDEN teslim edemedigi yazilir - kapi sessizce
+                // reddetmez.
+                GameEvents.RaiseDoorWrongParcel(stop.DestinationId,
+                    courier.CarriedCount > 0 ? courier.CarriedParcels[0] : null);
+                courier.PlayAction("interact-right", 0.4f);
+                return;
+            }
 
             // Konusma baslat: kod bekleniyor, HICBIR KARGO DURUMU
             //    degismez ve odeme YOK.
             _pending = parcel;
             _pendingStopId = stop.DestinationId;
             WrongAttempts = 0;
-
             int expected = parcel.DeliveryCode;
             string npcName = _npc != null && _npc.Get(stop.DestinationId) != null
                 ? _npc.Get(stop.DestinationId).Name
@@ -185,18 +236,45 @@ namespace KargoSim.Player
             // seviye, rotalar, kayit tam olarak eskisi gibi calisir.
             DeliveryOutcome? outcome = _delivery.TryDeliver(parcel.Id);
 
-            // Kargo basarili teslim EDILDIYSE elden dusulur. Basarisiz
-            // teslimde (kirilgan kargo hasarli) kargo elde kalir ki
-            // oyuncu tekrar deneyebilsin.
+            // Kargo basarili teslim EDILDIYSE NPC'ye verilir ve elden duser.
+            //
+            // Oyuncu istegi: "bu NPC de kargoyu verselim". Yani kutu
+            // artik havada kaybolmaz; onu kapida bekleyen NPC alir.
             if (outcome != null && outcome.Value != DeliveryOutcome.Failed)
-                _courier?.DropOne(parcel);
+            {
+                var npcVisual = GetComponent<DoorNpc>();
+                var box = Cargo.CargoWorldRegistry.Instance != null
+                    ? Cargo.CargoWorldRegistry.Instance.Find(parcel.Id) : null;
+
+                // Kutu NPC'nin eline gecer ve TESLIM ANINDA YOK OLUR.
+                //
+                // kargoMekanigi #56: "Parcel disappears from world ONLY
+                // NOW" - dogru kod girildikten sonra, hicbir baska
+                // asamada degil. Onceki yapisinda 0.8 sn bekleyen bir
+                // Update sayaci vardi; testte sahne yeniden yuklenince
+                // bu sayac hic bitmiyor ve kutu KALICI olarak kaliyordu.
+                // Teslim kesin oldugu icin islem senkron yapilir.
+                if (box != null && npcVisual != null)
+                {
+                    npcVisual.ReceiveParcel(box);
+                    npcVisual.DestroyReceivedParcel(box);
+                }
+                var reg = Cargo.CargoWorldRegistry.Instance;
+                if (reg != null) reg.Forget(parcel.Id);
+
+                // Yeni tasiyiciyi bosalt (eski DropOne yeni sistemi bilmiyor)
+                var carry = _courier != null ? _courier.Carry : null;
+                if (carry != null) carry.HandOffDelivered(box);
+                else _courier?.DropOne(parcel);
+            }
+            else if (GetComponent<DoorNpc>() != null)
+            {
+                GetComponent<DoorNpc>().GoBackInside();
+            }
 
             _npc?.CloseConversation(parcel.DestinationId);
             return outcome != null;
         }
-
-        /// <summary>Bu oturumda yapilan yanlis giris sayisi.</summary>
-        public int WrongAttempts { get; private set; }
 
         /// <summary>Oyuncu vazgecildi (Esc). Kargo elde kalir.</summary>
         public void CancelCodeEntry()
@@ -207,6 +285,10 @@ namespace KargoSim.Player
             _pending = null;
             _pendingStopId = -1;
             _npc?.CloseConversation(destination);
+
+            // Vazgecilince NPC geri girer; kuru OYUNCUDA kalir (#57).
+            var npcVisual = GetComponent<DoorNpc>();
+            if (npcVisual != null) npcVisual.GoBackInside();
         }
 
         private Parcel FindParcelForStop(CourierController courier, DeliveryStop stop)

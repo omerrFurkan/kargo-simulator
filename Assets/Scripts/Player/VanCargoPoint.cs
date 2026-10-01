@@ -360,6 +360,24 @@ namespace KargoSim.Player
         {
             if (_cargo == null) return;
 
+            // =============================================================
+            // YENI YOL (kargoMekanigi #33, #41, #122)
+            //
+            // Onceki kod ELDEKI TUM kargolari tek tek donguyle yukluyordu
+            // ve manifest sayaclarini kullaniyordu - yani fiziksel kasa
+            // hesabi degil, sadece agirlik/hacim toplami. Oyuncu 3 kutu
+            // eldeyken araca gorsunmeden 3 karto yuklenirdi.
+            //
+            // Simdi TEK kargo, fiziksel CargoArea, gercek slot:
+            // kapasite asarsa kutu ELDE kalir ve oyuncuya sebep yazilir.
+            // =============================================================
+            var carry = courier.Carry;
+            if (carry != null && Area != null)
+            {
+                carry.TryLoadToVehicle(Area);
+                return;
+            }
+
             int moved = 0;
             int rejected = 0;
 

@@ -150,7 +150,20 @@ namespace KargoSim.Player
         public bool IsInVehicle => _inVehicle;
 
         /// <summary>Ayaktayken ve bir sey tasirken.</summary>
-        public bool IsCarrying => _carriedParcels.Count > 0;
+        /// <summary>
+        /// Elde fiziksel kargo var mi?
+        ///
+        /// KRITIK DUZELTME: onceki hali `_carriedParcels` listesini
+        /// okuyordu. Yeni `CargoCarryController` kutuya TUTAR ama o
+        /// listeye eklemezdi. Bu yuzden kapinin `CanInteract`'i
+        /// "elde kargo yok" goruyor ve OYUNCUNUN TESLIMI HICBIR ZAMAN
+        /// ACILMIYORDU ("elimdeki kutuyu teslim edemiyorum").
+        ///
+        /// Simdi tek dogruluk kaynagi yeni tasiyici; eski liste yalniz
+        /// geriye donuk uyumluluk icin tutuluyor.
+        /// </summary>
+        public bool IsCarrying =>
+            _carry != null ? _carry.HasCargo : _carriedParcels.Count > 0;
 
         /// <summary>
         /// Ayaktayken baslar. Kurulum araci karakter modelini gizli
@@ -496,7 +509,22 @@ namespace KargoSim.Player
         public bool CanCarryMore => _carriedParcels.Count < maxCarry;
 
         /// <summary>Elde tasinan kargolar (systeme yazilacak GERCEK kargo).</summary>
-        public IReadOnlyList<Parcel> CarriedParcels => _carriedParcels;
+        /// <summary>
+        /// Eldeki kargo listesi. Yeni tasiyici ELDE tek kutu tutar;
+        /// teslimat sistemi bu listeyi okuyor, o yuzden dolu bir
+        /// gorunum vermek ZORUNDA (aksi halde rota kurulamaz).
+        /// </summary>
+        public IReadOnlyList<Parcel> CarriedParcels
+        {
+            get
+            {
+                var held = _carry != null ? _carry.HeldParcel : null;
+                if (held == null) return _carriedParcels;
+                _carriedParcels.Clear();
+                _carriedParcels.Add(held);
+                return _carriedParcels;
+            }
+        }
 
         /// <summary>
         /// Bu kutu zaten kuryede mi?
@@ -530,6 +558,40 @@ namespace KargoSim.Player
         /// <summary>Depo/dükkân rafından bir kutu alır.</summary>
         public bool PickUp(Parcel parcel)
         {
+            if (_carry != null)
+            {
+                // =========================================================
+                // YENI YOL: fiziksel kutu olusturulur ve TEK-KARGO
+                // tasiyiciya verilir.
+                //
+                // ONCE yalnizca `_carriedParcels` listesine ekleniyordu;
+                // boylece fiziksel kargo YOKTU ve 22 test/regresyon
+                // bozuldu. Artik tek dogruluk kaynagi yeni tasiyici.
+                // =========================================================
+                if (parcel == null) return false;
+
+                var reg = Cargo.CargoWorldRegistry.Instance;
+                if (reg == null) return false;
+
+                Vector3 at = transform.position + transform.forward * 1.2f
+                           + Vector3.up * 0.4f;
+                var box = reg.GetOrCreate(parcel, at);
+                if (box == null) return false;
+
+                var cc = GetComponent<Collider>();
+                if (!_carry.TryPickup(box, cc))
+                {
+                    // Alinamadiysa kutuyu kayitta BIRAKMA; oyuncu tekrar
+                    // denesin (kargo kaybolmaz).
+                    return false;
+                }
+
+                _carriedParcels.Clear();
+                _carriedParcels.Add(parcel);
+                if (!_carried.Contains(box.gameObject)) _carried.Add(box.gameObject);
+                return true;
+            }
+
             if (!CanCarryMore) return false;
             if (parcel == null) return false;
 
@@ -624,6 +686,19 @@ namespace KargoSim.Player
         /// </summary>
         public bool DropOne(Parcel parcel)
         {
+            // =========================================================
+            // YENI YOL: kutu teslim edildiginde cagirilir (kapi NPC'sine
+            // verilir). Tasiyiciyi bosaltmamiz gerekir ama kutu
+            // YOK EDILMEZ - teslim akisinda zaten yok edilecek.
+            // =========================================================
+            if (_carry != null)
+            {
+                var held = _carry.HeldParcel;
+                if (held == null) return false;
+                if (parcel != null && held.Id != parcel.Id) return false;
+                return _carry.HandOffDelivered(_carry.HeldBox);
+            }
+
             int index = _carriedParcels.IndexOf(parcel);
             if (index < 0) return false;
 
