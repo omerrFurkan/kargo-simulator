@@ -2,7 +2,7 @@
 
 Unity 6 ile geliştirilen,  kargo/kurye simülasyon oyunu.
 
-**Durum:** A şama 1-6 tamamlandı. **Oyun oynanabilir** � �� depo → kargo yükle → adrese git → t eslim et → para kazan. Kalan: görevler, ka yıt, harita içeriği.
+**Durum:** Çalışan prototip — geliştirme sürüyor. Depo → kargo yükle → adrese git → teslim et → para kazan döngüsü uçtan uca oynanabilir durumda. İçerik (görevler, yakıt, harita) genişletiliyor.
 
 ---
 
@@ -57,15 +57,15 @@ neden açılm� �yor" belirsizliği kalmaz.
 ### Testler
 
 Edi tMode testleri formülleri ve sahne bütünl� �ğünü, PlayMode testleri
-gerçek fizik mot orunda sürüşü VE oyunun tüm akışını  doğrular (**179 + 8 test**).
+gerçek fizik motorunda sürüşü VE oyunun tüm akışını doğrulayan EditMode ve PlayMode testleri içerir. Testler aşağıdaki komutlarla çalıştırılabilir.
 
 ```powershell
- # EditMode (179 test)
+ # EditMode testleri
 & "C:\Program Files\Uni ty\Hub\Editor\6000.3.25f1\Editor\Unity.exe" ` 
   -runTests -batchmode -nographics -projectP ath "D:\KargoSimulator" `
   -testPlatform Edi tMode -testResults "D:\KargoSimulator\editmod e.xml"
 
-# PlayMode (8 test)
+# PlayMode testleri
 & "C:\Program Fil es\Unity\Hub\Editor\6000.3.25f1\Editor\Unity. exe" `
   -runTests -batchmode -nographics -pr ojectPath "D:\KargoSimulator" `
   -testPlatfo rm PlayMode -testResults "D:\KargoSimulator\p laymode.xml"
@@ -151,9 +151,9 @@ Assets/
 │   ├── Cargo/            Parcel , ParcelType, ParcelGenerator, CargoManifest,  CargoSystem
 │   ├── Delivery/          MapLayout, DeliveryStop, RoutePlanner, Deli verySystem, StopMarker
 │   ├── Econom y/          EconomyConfig, PayoutCalculator,  Payout, EconomyService
-│   ├── Missio n/          (Aşama 6)
+│   ├── Missio n/          (yapılacak)
 │   ├── UI/                UIManager, HUD, Depot, Stop, DayS ummary, Minimap
-│   ├── Save/              (Aşama 7)
+│   ├── Save/              (yapılacak)
 │   └── Editor/            8 kurulum aracı (Project / Vehicle / Ke nney / Content / Delivery / Progression / UI  / Courier)
 ├── ScriptableObjects/
 │    ├── Definitions/      VehicleDefinitio n, Parcels/ (6 ParcelType)
@@ -271,7 +271,7 @@ Menü: `Kargo → 7. Kurye Karakterini Ku r`
 Kurye karakte ri oyunun **kontrolünde**: ayaktayken WASD +  fare ile
 FPS modunda yürür, araçta aracı  sürer.
 
-| Aşama | Ne yaparsın |
+| Adım | Ne yaparsın |
 |---|---| 
 | **1. Dükkân** | Mavi alandaki dükkâna  gir. Raftaki kutulara yaklaş, `E` ile al (ay nı anda 3 kutu). |
 | **2. Aracı yükle** |  Aracın arkasındaki mavi noktaya git, `E`ye  bas. Kutular araca yüklenir. |
@@ -362,7 +362,7 @@ Oyuncu aynı an da hem yürüyüp hem araç kullanamaz; HUD'd a
 Ayrıca HUD'da o anki bağla m yazılı (`[E] Depoyu ac`, `[E] Yukle`,
 `[E ] Teslim et` …); oyuncu tuşları tahmin et mek zorunda kalmaz.
 
-Detaylı oynanış: bak� �nız *Aşama 6 — Arayüz*.
+Detaylı oynanış için arayüz koduna bakınız.
 
 ---
 
@@ -370,7 +370,7 @@ Detaylı oynanış: bak� �nız *Aşama 6 — Arayüz*.
 
 ---
  
-## Aşama 2 — Araç
+## Yapılacak 2 — Araç
 
 | Script | Görevi |
  |---|---|
@@ -397,7 +397,7 @@ durur ama ilk gazda takla atar — P layMode testinde ölçüldü.
 
 ---
 
-## Aşama  3 — Kargo sistemi
+## Yapılacak 3 — Kargo sistemi
 
 | Script | Görevi |
 |- --|---|
@@ -428,16 +428,15 @@ toh umu gün numarasından türetir (`day * 7919` ). Aynı gün → aynı kargol
 Böylece "5 . günde hangi kargolar vardı" sorusu save d osyasından yeniden
 kurulabilir; testler de k ararlı olur.
 
-### Bu aşamada olmayanlar (bi linçli)
+### Bu adımda olmayanlar (bilinçli)
 
-Teslimat ve ödeme **Aşama 4/5**.  `Parcel.DestinationId` şimdilik opak bir
-tam sayı; gerçek koordinatlara Aşama 4'te bağ lanacak. `Parcel.BaseValue`
+Teslimat ve ödeme bir sonraki adımda. `Parcel.DestinationId` şimdilik opak bir tam sayı; gerçek koordinatlara bağlanacak. `Parcel.BaseValue`
 kargonun kendi de ğerini tutar, ödeme hesabını ekonomi sist emi yapar — iki
 yer hesap yapmaz.
 
 ---
 
-##  Aşama 4 — Teslimat sistemi
+## Yapılacak 4 — Teslimat sistemi
 
 | Script | Gö revi |
 |---|---|
@@ -473,7 +472,7 @@ değiştirmeden sıralı kopya dö ndürür — yan etkisiz ve test edilebilir.
 | `Late` | süre geçti kten sonra | kısmi ödeme, az XP |
 | `Failed ` | gün sonunda teslim edilmemiş | ödeme y ok, itibar kaybı |
 
-Para ve XP **Aşama 5**.  `DeliverySystem` yalnızca sonucu bilir;
+Para ve XP **bu adımda**.  `DeliverySystem` yalnızca sonucu bilir;
 hes aplamayı ekonomi sistemi yapar.
 
 ### Rota ke ndini iyileştirir
@@ -482,17 +481,17 @@ Rota, event'e değil **y� �klü kargo sayısına** bakarak yenilenir. K argo
 başka bir yoldan yüklenirse (test, ile ride araç değişimi) rota bayat
 kalmaz. Tes t bunu doğruluyor.
 
-### Bu aşamada olmayanl ar
+### Bu adımda olmayanlar
 
-Binalar, yollar, görsel teslimat noktala rı **Aşama 8**. Şu an
-`MapLayout` iki halk adan oluşan geçici bir ızgaradır; Aşama  8'de aynı
+Binalar, yollar, görsel teslimat noktala rı **bu adımda**. Şu an
+`MapLayout` iki halk adan oluşan geçici bir ızgaradır; ileride aynı
 kimlikli gerçek binalar bu konuml ara bindirilecek — asset değişmeyecek.
 
 - --
 
 ---
 
-## Aşama 5 — Para + XP/level
+## Yapılacak 5 — Para + XP/level
 
 | S cript | Görevi |
 |---|---|
@@ -550,17 +549,17 @@ tanımaz,  hepsi olay kanalından haber alır.
 > **Bul unan hata:** Kargolar yalnızca `Start()`'ta  bir kez üretiliyordu —
 > 2. gün depoda ** hiç kargo kalmıyordu**. Regresyon testi ekl endi.
 
-### Bu aşamada olmayanlar
+### Bu adımda olmayanlar
 
-UI (Aşama  6). Para hareketleri şu an sadece sayı; ek randa görünmüyor.
-Araç yükseltme mağaza sı, itibar ve şirket büyümesi bu aşaman� �n
+UI (yapılacak). Para hareketleri şu an sadece sayı; ek randa görünmüyor.
+Araç yükseltme mağaza sı, itibar ve şirket büyümesi bu adımın ön
 kapsamında değil.
 
 ---
 
 ---
 
-## Aşama 6  — Arayüz
+## Yapılacak 6 — Arayüz
 
 | Script | Görevi |
 |---|---|
@@ -638,15 +637,14 @@ Para/seviye pane li ve minimap **sol alta** alındı (istek ü zerine):
 bilgi paneli sol alt köşede, minim ap hemen sağında, hedef/ipucu
 metinleri alt  orta. Eskiden HUD sol üstte, minimap sağ � �stteydi.
 
-### Bu aşamada olmayanlar
+### Bu adımda olmayanlar
 
-Yakıt , görevler (Mission) ve kayıt (Save) hâlâ  yok. Yakıt Aşama 2'de
-bilinçli olarak ert elenmişti: depoya yakıt alma mekaniği karg o sistemiyle
+Yakıt, görevler (Mission) ve kayıt (Save) henüz eklenmedi. bilinçli olarak ert elenmişti: depoya yakıt alma mekaniği karg o sistemiyle
 birlikte çalışması daha doğ ru olur.
 
 ---
 
-## Aşama 7 — Kayıt / Yükl eme
+## Yapılacak 7 — Kayıt / Yükl eme
 
 Oyuncu ilerlemesi `persistentDataPath/ka rgosave.json` dosyasına yazılır.
 Kayıt ** gun sonunda otomatik** alınır (`GameComposi tionRoot.autosaveOnDayEnd`).
@@ -674,7 +672,7 @@ aynı gün onu tekrar yükleyip  teslim edebilir ve ödeme iki kez yazılır.
 Kayıt **opsiyoneldir**: dosya bozuksa veya  yazılamazsa oyun durmaz,
 konsola uyarı ver ir ve yeni oyunla devam eder.
 
-## Aşama 8 � � Ses (prosedürel)
+## Yapılacak 8
 
 Projede **hiç ses dosya sı yok ve gerekmiyor**: tüm efektler kod il e
 sentezleniyor (`AudioClip.Create` + `Mathf. Sin` + kendi LCG tabanlı
@@ -699,7 +697,7 @@ Susturma ses i bastırmakla değil **karar zincirini keser ek** yapar
 doğrulayabil ir. `Awake`'de abone olur, `OnDestroy`'da **k esinlikle**
 çıkar (Domain Reload kapalıyke n sızıntı olur).
 
-## Aşama 9 — Şehir d ekoru
+## Yapılacak 9 — Şehir d ekoru
 
 `MapLayout` yalnızca nokta listesi ve rir; dekor aracı o bilgiyi
 sahnenin üstüne  kurar (asset değişmez).
@@ -727,7 +725,7 @@ mesafesi, zemin altında kalan bina sa yısı, nesne bütçesi.
 
 ---
 
-| # | Aşama |  Durum |
+| # | Adım | Durum |
 |---|---|---|
 | 1 | Proje + ayarlar  + çekirdek | ✅ |
 | 2 | Player + araç kont rolü | ✅ |
@@ -740,7 +738,7 @@ mesafesi, zemin altında kalan bina sa yısı, nesne bütçesi.
 |  9 | Optimizasyon | ⬜ |
 | 10 | Polish ve yay ın hazırlığı | ⬜ |
 
-**Kural:** Her aş ama Play'de test edilmeden sonrakine geçilme z.
+**Kural:** Her adım Play'de test edilmeden sonrakine geçilme z.
 
 ---
 
